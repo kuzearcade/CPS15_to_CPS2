@@ -124,7 +124,7 @@ python3 -m cps15to2.convert wof wofr1 wofu wofa wofj \
 ```
 
 Each set prints one summary line, for example
-`wofc2: cave 0x330e, 140 sites, 19910 overlay tiles`. Builds of different sets are
+`wofc2: cave 0x395e, 142 sites, 19910 overlay tiles`. Builds of different sets are
 independent and can run in parallel.
 
 Output:
@@ -134,6 +134,42 @@ out/mame/<set>c2.zip          MAME set (EPROM split, phoenix.key)
 out/mame/<set>c2/             same files unzipped, plus rom_start.inc and manifest.txt
 out/darksoft/<set>c2/         flash.NN files, key, NAME (14-char title + "=" + region letter)
 ```
+
+#### Expected output
+
+The build is deterministic: the same ROMs, MAME tree and vasm produce the same
+files. A fresh clone built with the steps above reproduces every file of all 18
+sets byte for byte. The zips store file timestamps, so check the folders
+instead. Each checksum below is the SHA-1 of the `sha1sum` listing of one
+folder, sorted with `LC_ALL=C`:
+
+```sh
+export LC_ALL=C
+for d in out/mame/*c2/ out/darksoft/*c2/; do
+  echo "$(cd "$d" && sha1sum * | sha1sum | cut -c1-40)  $d"
+done
+```
+
+| Set | `out/mame/<set>/` | `out/darksoft/<set>/` |
+|---|---|---|
+| wofc2 | `272546915a7545f680b92cb930b4a1bb902b0418` | `d58dbdccf4e5846f1c77de7d660bcc1c6f697bf5` |
+| wofr1c2 | `7095a16d82b6fdee29bc1d7090d122ec2d0c905e` | `676beb226a73eef95c797b5eb006ba1d267773bb` |
+| wofuc2 | `581a39433305298e2efe7b660b1eb9aeb55a9200` | `af23f08f961ee68743161267d29cdf1311651c4d` |
+| wofac2 | `9c56e7613aa8cd6e2f5bdaf0e97cc176adff2551` | `d503d946b80691023744b5647adc5e701e7db280` |
+| wofjc2 | `9dca3eda636053a7df1fa6b71ad342f17863b696` | `efb9190120ff3f3906031bb45990e179a0caf865` |
+| dinoc2 | `23e2c58109735f055d899a59dc876d750706142d` | `e53e6a56dcb451ca66b06806d65ed6114c2fd82d` |
+| dinouc2 | `23548faf8cc1b3aa5a76d13a94667841f6b92ef0` | `e4844f215c011555381be6ca596f67270a5c1432` |
+| dinojc2 | `f5b514b38e7d68e14afc13e4212fde49e47b8c81` | `8628645fa94ca37e9c99c5efe37d3d4a2519f1f7` |
+| dinoac2 | `5b3e2f269d4927b85f5e7087ef9887b6f7b3701c` | `e27dda890290a05dc8fc6896c3411e1dbf96e6e0` |
+| punisherc2 | `fe1baee473cfa78e1be687287f9bc00e67b908c2` | `77f9412031e053ab33631efe28f95b3c66c4e0a9` |
+| punisheruc2 | `b87753cad3915f478e3477875192b43b6323d3b5` | `ee60a737441c78bd4bbf3ace8aa0e62fa77fc6a7` |
+| punisherhc2 | `b2d8b981f939425ec45dfdc0257c3af3ce97361a` | `0aa4941eda972f0e3237e626f22b27cbe1213ac9` |
+| punisherjc2 | `059c0adf775b37b417655efc9340755157f7846c` | `e30a1ffc4377d70b1f6ca6ceb3b8a9c6eb1aa7f2` |
+| slammastc2 | `bacef1a7e5ae91d7a0681deda566b19717f78cde` | `a26d9a355b624f14ed91714dcf1806d3bbd379c2` |
+| slammastuc2 | `cce7ebf9dd9680aa5ae78a5f2d5ed188fab70d59` | `aa35e5a9b5b802e9afee8dc7e0c0f2ab4c5afd12` |
+| mbomberjc2 | `b716e7e4497dfc13a73a30331ebdf2bf1684eb00` | `04c4251152cb68b4a8852c6d03822b11abc6be48` |
+| mbombrdc2 | `d65f654a300e47964c7bf0cf0b5f759f861ffa37` | `c17bc84ef5448b49bcd69e4a8371b23bd5e56816` |
+| mbombrdjc2 | `a24d1ff2ad9331c7da12d34e42af438582dab53b` | `f853217c62ffe3e3980f5f92654a6b2f772bc64e` |
 
 ### 5. Add the sets to MAME
 
