@@ -1,0 +1,16 @@
+out/
+mame_roms/
+darksoft_ref/
+__pycache__/
+*.pyc
+tools/build/
+work/
+# game-derived material: never commit (disassembly listings, third-party cheat files,
+# ROM extracts used for audits)
+analysis/*_io_inventory.md
+analysis/cheats/
+*.bin
+# third-party assembler source (download it, see README)
+tools/vasm.tar.gz
+# design notes (kept local)
+PLAN.md

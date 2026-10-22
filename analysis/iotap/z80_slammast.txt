@@ -1,0 +1,14 @@
+0011 R fb76 n=1 first=0 vals=0
+0011 R fb78 n=1 first=0 vals=0
+0011 R fb83 n=1 first=0 vals=0
+0011 R fc61 n=1 first=0 vals=0
+0011 R fc82 n=1 first=0 vals=0
+0011 R fd60 n=1 first=0 vals=0
+0011 R fd61 n=1 first=0 vals=0
+0011 W fb76 n=1 first=0 vals=0
+0011 W fb78 n=1 first=0 vals=0
+0011 W fb83 n=1 first=0 vals=0
+0011 W fc61 n=1 first=0 vals=0
+0011 W fc82 n=1 first=0 vals=0
+0011 W fd60 n=1 first=0 vals=0
+0011 W fd61 n=1 first=0 vals=0

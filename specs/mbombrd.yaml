@@ -1,0 +1,55 @@
+# mbombrd code base - CPS-B QS5 (from MAME cps1_v.cpp CPS_B_21_QS5)
+codebase: mbombrd
+reference_set: mbombrd
+cpsb:
+  layer: 0x2a
+  palctrl: 0x1c
+  masks: [0x2c, 0x2e, 0x30, 0x32]
+  id_off: 0x1e
+  id_val: 0x0c02
+  enables: [0x04, 0x08, 0x10]
+  unknown: [0x0c]
+# Same protection scheme as Slam Masters: run-time mapped I/O and bit-level EEPROM.
+indirect_stubs: true
+ee8: true
+eeprom:
+  asm: cb_mbombrd.s
+  hooks:
+    - {pc: 0x001072, label: cb_ee_load}
+    - {pc: 0x0010ca, label: cb_ee_save}
+  region: [0x001072, 0x001296]     # standard bit-bang driver ($1296: default EEPROM image)
+  symbols:
+    EE_TRAP: {pc: 0x000b3c}
+overrides:
+  0x01bf74: {action: ignore, note: "write to $800180 (CPS1 sound latch): not mapped on QSound boards, a no-op"}
+  0x01bf7c: {action: ignore, note: "write to $800188: not mapped on QSound boards, a no-op"}
+  0x042f12: {action: ignore, note: "subtracts the immediate $800000: 16.16 coordinate arithmetic"}
+  0x042f1a: {action: ignore, note: "subtracts the immediate $800000: 16.16 coordinate arithmetic"}
+  0x042fcc: {action: ignore, note: "subtracts the immediate $800000: 16.16 coordinate arithmetic"}
+  0x043028: {action: ignore, note: "subtracts the immediate $800000: 16.16 coordinate arithmetic"}
+  0x06569a: {action: ignore, note: "immediate $f1c006 stored in an object field: data (any use as a pointer is run-time mapped)"}
+  0x05e434: {action: ignore, note: "immediate $800000 stored in an object field: 16.16 velocity, not an address"}
+  0x02a1fa: {action: ignore, note: "immediate $800000 in a data register: 16.16 scale, not an address"}
+# game RAM word the vblank IRQ copies to the CPS-B layer control ($d58(a5) -> $80016A at $67E)
+layer_shadow: 0xff8d58
+# priority masks 1-3 the vblank IRQ copies to the CPS-B ($d5a-$d5e(a5) -> masks 1-3 at $666-$676)
+mask_shadow: 0xff8d5a
+next_regs: true
+idle_hook: {pc: 0x00099c, kind: jmp, label: cb_idle, resume: 0x0009a2}
+# code checksums (tools/patchreads.py): summing loops whose regions contain patched
+# bytes read unpatched copies (sums verified against the game's expected values)
+region_shadows:
+  - {pc: 0x001f88, src: 0x000b50, len: 0x1c0}   # 0x70 longs
+  - {pc: 0x0036fe, src: 0x000b50, len: 0x1c0}   # 0xE0 words
+  - {pc: 0x002fba, src: 0x0006cc, len: 0x0ac}   # 0x56 words
+  - {pc: 0x005a66, src: 0x0006cc, len: 0x0ac}   # 0x56 words
+  - {pc: 0x005ab6, src: 0x000000, len: 0x0c0}   # vector table, 0x60 words
+  - {range: [0x049404, 0x049408]}               # [$655FE,$65682) words
+patches:
+  # Work RAM $FFFFF0-$FFFFFF holds the CPS2 object registers on phoenix boards: real
+  # hardware does not read them back like RAM, so the games' RAM tests would fail
+  # (red screen) and their RAM clears would zero the registers. Every loop over the
+  # top of work RAM stops at $FFFFEF (MAME backs those addresses with RAM, so only
+  # hardware shows the difference).
+  - {pc: 0x000582, replace: 0x3ffb, note: "boot RAM clear: stop at $FFFFEF"}
+  - {pc: 0x000c92, replace: 0xffec, note: "boot RAM test: end at $FFFFEF"}

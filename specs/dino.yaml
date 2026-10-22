@@ -1,0 +1,51 @@
+# Cadillacs and Dinosaurs code base (dino, dinou, dinoj, dinoa) - CPS-B QS2, PAL CD63B
+codebase: dino
+reference_set: dino
+cpsb:
+  layer: 0x0a
+  palctrl: 0x04
+  masks: [0x0c, 0x0e, 0x00, 0x02]
+  id_off: -1
+  id_val: 0
+  enables: [0x16, 0x16, 0x16]      # MAME: "layer enable never used"
+  unknown: [0x2e, 0x20]            # battery-config writes at boot ($a874/$a87c): shadow only
+# addresses are for reference_set; other sets are located by signature (16 bytes)
+eeprom:
+  asm: cb_dino.s
+  hooks:
+    - {pc: 0x0aca66, label: cb_ee_load}
+    - {pc: 0x0acaba, label: cb_ee_save}
+  region: [0x0aca66, 0x0acbf4]     # replaced bit-bang driver; its I/O sites are dropped
+  symbols:                         # cfg symbols resolved per set by signature
+    EE_TRAP: {pc: 0x000a2a}        # trap #12 helper: d0=1 raise IPL, d0=0 lower
+ignore_insns:
+  - {match: '(subi|addi)\.l #\$800000,d[0-7]', note: "16.16 coordinate arithmetic"}
+overrides:
+  0x08adc0: {action: ignore, note: "immediate $800000 in a data register is a function argument, not an address"}
+  0x0001b8: {action: stub, note: "boot self-test input read: stub keeps the operand bytes (read as data by a stale object pointer)"}
+# ROM data read by the game that overlaps patched code: readers get an unpatched copy
+# (found by tools/patchreads.py; the default EEPROM table copy runs into the QSound RAM test code)
+data_shadows:
+  - {pc: 0x0ac9d6, reg: a1, src: 0x0acbf4, len: 0x80}
+# game RAM word the vblank IRQ copies to the CPS-B layer control ($28(a5) -> $80014A at $80A)
+layer_shadow: 0xff8028
+# asm/cb_dino.s provides ovl_next_regs (next-frame scroll2 base/scroll for overlays)
+next_regs: true
+# a tamper check scans the vblank handler ($542, $66 words) for branch ($6000) and
+# no-op ($4E71) opcode words
+opcode_scans: [{start: 0x000542, words: 0x66, match: [[0x6000, 0xffff], [0x4e71, 0xffff]]}]
+# scheduler idle point: after a full scan of the 16 task slots found nothing to run
+# ($872, interrupts enabled; the scan loops back to $844) -> TRAP #15 -> hal_idle, resume at $844
+idle_hook: {pc: 0x000872, kind: trap, resume: 0x000844}
+patches:
+  # Work RAM $FFFFF0-$FFFFFF holds the CPS2 object registers on phoenix boards: real
+  # hardware does not read them back like RAM, so the games' RAM tests would fail
+  # (red screen) and their RAM clears would zero the registers. Every loop over the
+  # top of work RAM stops at $FFFFEF (MAME backs those addresses with RAM, so only
+  # hardware shows the difference).
+  - {pc: 0x000424, replace: 0x3ffb, note: "boot RAM clear: stop at $FFFFEF"}
+  - {pc: 0x0aaa50, replace: 0xfffff0, note: "boot RAM test: end at $FFFFEF"}
+  - {pc: 0x0accfe, replace: 0x7ff7, note: "RAM test pass 1: end at $FFFFEF"}
+  - {pc: 0x0acd12, replace: 0x7ff7, note: "RAM test pass 2: end at $FFFFEF"}
+  - {pc: 0x0acd26, replace: 0x7ff7, note: "RAM test pass 3: end at $FFFFEF"}
+  - {pc: 0x0acd3a, replace: 0x7ff7, note: "RAM test pass 4: end at $FFFFEF"}

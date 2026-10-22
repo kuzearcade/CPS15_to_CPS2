@@ -1,0 +1,152 @@
+diff --git a/src/emu/debug/debugcpu.cpp b/src/emu/debug/debugcpu.cpp
+index 7c742fe9ade..16ceb21390d 100644
+--- a/src/emu/debug/debugcpu.cpp
++++ b/src/emu/debug/debugcpu.cpp
+@@ -545,6 +545,9 @@ device_debug::device_debug(device_t &device)
+ 		// add global symbol for cycles and totalcycles
+ 		if (m_exec != nullptr)
+ 		{
++			if (std::getenv("MAME_COVERAGE_DIR") != nullptr)
++				m_coverage.resize(0x1000000 / 8, 0);
++
+ 			m_symtable = std::make_unique<symbol_table>(device.machine(), symbol_table::CPU_STATE, &device.machine().debugger().cpu().global_symtable(), &device);
+ 
+ 			m_symtable->add("cycles", [this]() { return m_exec->cycles_remaining(); });
+@@ -619,6 +622,22 @@ device_debug::device_debug(device_t &device)
+ 
+ device_debug::~device_debug()
+ {
++	// write the opt-in coverage bitmap (one bit per byte address, 24-bit space)
++	if (!m_coverage.empty())
++	{
++		const char *dir = std::getenv("MAME_COVERAGE_DIR");
++		std::string name = m_device.tag();
++		for (char &c : name)
++			if (c == ':')
++				c = '_';
++		std::string path = std::string(dir) + "/cov" + name + ".bin";
++		if (FILE *f = std::fopen(path.c_str(), "wb"))
++		{
++			std::fwrite(m_coverage.data(), 1, m_coverage.size(), f);
++			std::fclose(f);
++		}
++	}
++
+ 	// free breakpoints and watchpoints
+ 	breakpoint_clear_all();
+ 	watchpoint_clear_all();
+@@ -881,6 +900,10 @@ void device_debug::instruction_hook(offs_t curpc)
+ 		compute_debug_flags();
+ 	}
+ 
++	// opt-in coverage bitmap
++	if (!m_coverage.empty())
++		m_coverage[(curpc & 0xffffff) >> 3] |= u8(1 << (curpc & 7));
++
+ 	// are we tracking our recent pc visits?
+ 	if (m_track_pc)
+ 	{
+diff --git a/src/emu/debug/debugcpu.h b/src/emu/debug/debugcpu.h
+index 631d4c788d9..ed6aca4b814 100644
+--- a/src/emu/debug/debugcpu.h
++++ b/src/emu/debug/debugcpu.h
+@@ -276,6 +276,9 @@ private:
+ 	std::set<dasm_pc_tag> m_track_pc_set;
+ 	bool m_track_pc;
+ 
++	// opt-in executed-PC coverage bitmap (MAME_COVERAGE_DIR), observation only
++	std::vector<u8> m_coverage;
++
+ 	// comments
+ 	class dasm_comment : public dasm_pc_tag
+ 	{
+diff --git a/src/emu/device.cpp b/src/emu/device.cpp
+index 0192ae9faa2..22c3dd0a749 100644
+--- a/src/emu/device.cpp
++++ b/src/emu/device.cpp
+@@ -76,6 +76,8 @@ emu::detail::device_registrar const registered_device_types;
+ //  LIVE DEVICE MANAGEMENT
+ //**************************************************************************
+ 
++static double test_overclock(const char *tag);
++
+ //-------------------------------------------------
+ //  device_t - constructor for a new
+ //  running device; initial state is derived
+@@ -377,7 +379,7 @@ void device_t::set_unscaled_clock(u32 clock, bool sync_on_new_clock_domain)
+ 		return;
+ 
+ 	m_unscaled_clock = clock;
+-	m_clock = m_unscaled_clock * m_clock_scale + 0.5;
++	m_clock = m_unscaled_clock * m_clock_scale * test_overclock(tag()) + 0.5;
+ 	m_attoseconds_per_clock = (m_clock == 0) ? 0 : HZ_TO_ATTOSECONDS(m_clock);
+ 
+ 	// recalculate all derived clocks
+@@ -390,6 +392,35 @@ void device_t::set_unscaled_clock(u32 clock, bool sync_on_new_clock_domain)
+ }
+ 
+ 
++
++//-------------------------------------------------
++//  test_overclock - opt-in test knob: environment
++//  variable MAME_CPU_OVERCLOCK=":tag=factor[,...]"
++//  multiplies a device's clock (used by the
++//  CPS15_to_CPS2 logic-equivalence harness only)
++//-------------------------------------------------
++
++static double test_overclock(const char *tag)
++{
++	const char *env = std::getenv("MAME_CPU_OVERCLOCK");
++	if (!env)
++		return 1.0;
++	std::string spec(env);
++	size_t pos = 0;
++	while (pos < spec.size())
++	{
++		size_t end = spec.find(',', pos);
++		std::string item = spec.substr(pos, end == std::string::npos ? std::string::npos : end - pos);
++		size_t eq = item.find('=');
++		if (eq != std::string::npos && item.substr(0, eq) == tag)
++			return std::atof(item.c_str() + eq + 1);
++		if (end == std::string::npos)
++			break;
++		pos = end + 1;
++	}
++	return 1.0;
++}
++
+ //-------------------------------------------------
+ //  set_clock_scale - sets a scale factor for the
+ //  device's clock
+@@ -402,7 +433,7 @@ void device_t::set_clock_scale(double clockscale)
+ 		return;
+ 
+ 	m_clock_scale = clockscale;
+-	m_clock = m_unscaled_clock * m_clock_scale + 0.5;
++	m_clock = m_unscaled_clock * m_clock_scale * test_overclock(tag()) + 0.5;
+ 	m_attoseconds_per_clock = (m_clock == 0) ? 0 : HZ_TO_ATTOSECONDS(m_clock);
+ 
+ 	// recalculate all derived clocks
+@@ -502,6 +533,13 @@ void device_t::resolve_pre_map()
+ 	// prepare the logerror buffer
+ 	if (m_machine->allow_logging())
+ 		m_string_buffer.reserve(1024);
++
++	// opt-in test overclock (no effect unless MAME_CPU_OVERCLOCK names this device)
++	if (test_overclock(tag()) != 1.0)
++	{
++		m_clock = m_unscaled_clock * m_clock_scale * test_overclock(tag()) + 0.5;
++		m_attoseconds_per_clock = (m_clock == 0) ? 0 : HZ_TO_ATTOSECONDS(m_clock);
++	}
+ }
+ 
+ 
+@@ -654,7 +692,7 @@ void device_t::pre_save()
+ void device_t::post_load()
+ {
+ 	// recompute clock-related parameters if something changed
+-	u32 const scaled_clock = m_unscaled_clock * m_clock_scale + 0.5;
++	u32 const scaled_clock = m_unscaled_clock * m_clock_scale * test_overclock(tag()) + 0.5;
+ 	if (m_clock != scaled_clock)
+ 	{
+ 		m_clock = scaled_clock;

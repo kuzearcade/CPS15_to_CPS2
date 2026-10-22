@@ -1,0 +1,69 @@
+# slammast code base - CPS-B QS4 (from MAME cps1_v.cpp CPS_B_21_QS4)
+codebase: slammast
+reference_set: slammast
+cpsb:
+  layer: 0x16
+  palctrl: 0x2c
+  masks: [0x00, 0x02, 0x28, 0x2a]
+  id_off: 0x2e
+  id_val: 0x0c01
+  enables: [0x04, 0x08, 0x10]
+  unknown: [0x1c, 0x1e, 0x08]
+# Obfuscated I/O: pointers to the EEPROM port, QSound RAM and the Z80 ROM window are
+# computed at run time (also from Z80 ROM bytes); such accesses get run-time mapped
+# stubs, and the EEPROM is emulated at the bit level (93C46 x8, asm/ee8.s).
+indirect_stubs: true
+ee8: true
+overrides:
+  0x01e9da: {action: ignore, note: "write to $800180 (CPS1 sound latch): not mapped on QSound boards, a no-op"}
+  0x01e9e2: {action: ignore, note: "write to $800188: not mapped on QSound boards, a no-op"}
+  0x02ab82: {action: ignore, note: "subtracts the immediate $800000: 16.16 coordinate arithmetic"}
+  0x02b5e2: {action: ignore, note: "subtracts the immediate $800000: 16.16 coordinate arithmetic"}
+  0x02b90a: {action: ignore, note: "subtracts the immediate $800000: 16.16 coordinate arithmetic"}
+  0x042e02: {action: ignore, note: "subtracts the immediate $800000: 16.16 coordinate arithmetic"}
+  0x042e0a: {action: ignore, note: "subtracts the immediate $800000: 16.16 coordinate arithmetic"}
+  0x042ebc: {action: ignore, note: "subtracts the immediate $800000: 16.16 coordinate arithmetic"}
+  0x042f18: {action: ignore, note: "subtracts the immediate $800000: 16.16 coordinate arithmetic"}
+  0x05e084: {action: ignore, note: "immediate $800000 stored in an object field: 16.16 velocity, not an address"}
+  0x030bae: {action: ignore, note: "immediate $800000 in a data register: 16.16 scale, not an address"}
+  0x000184: {action: stub, note: "boot self-test input read: stub keeps the operand bytes (summed by the disabled check at $14320)"}
+  0x000190: {action: stub, note: "boot self-test input read: stub keeps the operand bytes (summed by the disabled check at $14320)"}
+  0x00019c: {action: stub, note: "boot self-test input read: stub keeps the operand bytes (summed by the disabled check at $14320)"}
+  0x0001a8: {action: stub, note: "boot self-test input read: stub keeps the operand bytes (summed by the disabled check at $14320)"}
+  0x0001be: {action: stub, note: "boot self-test input read: stub keeps the operand bytes (summed by the disabled check at $14320)"}
+  0x0001ca: {action: stub, note: "boot self-test input read: stub keeps the operand bytes (summed by the disabled check at $14320)"}
+  0x0001d6: {action: stub, note: "boot self-test input read: stub keeps the operand bytes (summed by the disabled check at $14320)"}
+  0x0001e2: {action: stub, note: "boot self-test input read: stub keeps the operand bytes (summed by the disabled check at $14320)"}
+  0x0001ee: {action: stub, note: "boot self-test input read: stub keeps the operand bytes (summed by the disabled check at $14320)"}
+# anti-tamper sums the game assembles in work RAM (obfuscated: not/neg/+$40 encoded
+# words) and calls; CPS2 MAME fetches opcodes from ROM only, so the calls run the same
+# routine from ROM over an unpatched copy of the span. span: [start, end) summed.
+ram_calls:
+  - {pc: 0x04d708, reg: a0, size: b, span: [0x04db0a, 0x04db7c], note: "built at $1e4(a6) by $4d6b4 (not)"}
+  - {pc: 0x044c3c, reg: a0, size: b, span: [0x0447ca, 0x04487b], note: "built at $1e4(a6) by $44be2 (neg)"}
+  - {pc: 0x052bc2, reg: a1, size: w, span: [0x07252c, 0x0726f6], note: "built at $4e98(a5) by $52b9c (+$40)"}
+  # not a sum: an EEPROM byte read ($338 = READ $38) through $F1C006, called when the
+  # $228e(a5) bits reach $3ff (found at frame 53751 of the mbomberj 1P playthrough)
+  - {pc: 0x047050, kind: ee8_read, note: "built at $6000(a5) by $447c2 (+$4e76)"}
+eeprom:
+  asm: cb_slammast.s
+  hooks:
+    - {pc: 0x001088, label: cb_ee_load}
+    - {pc: 0x0010e2, label: cb_ee_save}
+  region: [0x001088, 0x0012aa]     # standard bit-bang driver ($12AA: default EEPROM image)
+  symbols:
+    EE_TRAP: {pc: 0x000bd8}
+# game RAM word the vblank IRQ copies to the CPS-B layer control ($d72(a5) -> $800156 at $67E)
+layer_shadow: 0xff8d72
+# priority masks 1-3 the vblank IRQ copies to the CPS-B ($d74-$d78(a5) -> masks 1-3 at $666-$676)
+mask_shadow: 0xff8d74
+next_regs: true
+idle_hook: {pc: 0x000a38, kind: jmp, label: cb_idle, resume: 0x000a3e}
+patches:
+  # Work RAM $FFFFF0-$FFFFFF holds the CPS2 object registers on phoenix boards: real
+  # hardware does not read them back like RAM, so the games' RAM tests would fail
+  # (red screen) and their RAM clears would zero the registers. Every loop over the
+  # top of work RAM stops at $FFFFEF (MAME backs those addresses with RAM, so only
+  # hardware shows the difference).
+  - {pc: 0x000582, replace: 0x3ffb, note: "boot RAM clear: stop at $FFFFEF"}
+  - {pc: 0x000d30, replace: 0xffec, note: "boot RAM test: end at $FFFFEF"}
