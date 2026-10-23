@@ -93,6 +93,10 @@ class Regs:
         if m:
             v = int(m.group(1), 16)
             return _sx(v, 2) & 0xFFFFFF if m.group(2) == "w" else v & 0xFFFFFF
+        m = re.fullmatch(r"-\((a[0-7]|sp)\)", op)
+        if m:                           # before d(An): a bare "-" is not a displacement
+            b = self.get(m.group(1))
+            return (b[0] - size) & 0xFFFFFF if full(b) else None
         m = re.fullmatch(r"(-?\$?[0-9a-f]*)\((a[0-7]|sp|pc)(?:, *([ad][0-7])\.([wl]))?\)", op)
         if m:
             d = m.group(1) or ""
@@ -552,8 +556,8 @@ class Evaluator:
         regs = Regs(dict(self.state.get(pc, {})), self.read)
         out = []
         for op in split_ops(ins.ops):
-            m = (re.fullmatch(r"(-?\$?[0-9a-f]*)\((a[0-6])\)\+?", op)
-                 or re.fullmatch(r"-\((a[0-6])\)", op))
+            m = (re.fullmatch(r"-\((a[0-6])\)", op)
+                 or re.fullmatch(r"(-?\$?[0-9a-f]*)\((a[0-6])\)\+?", op))
             if not m:
                 continue
             if op.startswith("-("):

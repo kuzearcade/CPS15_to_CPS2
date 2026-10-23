@@ -81,16 +81,41 @@ ee_readw:
 ; from $1FF at line 0 (hal_init). Independent of interrupts (the games use the
 ; EEPROM before enabling them, and with them masked): a frame is counted when the
 ; scanline is lower than at the previous read. -> d0.l lines (clobbers d1)
+; ee_now_vbl: the same from hal_vbl, once per frame. Its reads are one frame apart, so
+; the frame count is the previous vblank's plus one, whatever the scanline did in
+; between (reads at about the same line every vblank, as pal_show's when a game
+; uploads no palette, saw no time pass and waited PAL_DMA lines each frame)
+ee_now_vbl:
+        move.w  #$1ff,d1
+        sub.w   CPS2_CPSB+$12,d1
+        move.l  SH_CLKWRAP,d0           ; by the scanline rule (never too many)
+        cmp.w   SH_CLKLINE,d1
+        bhs     .k
+        addq.l  #1,d0
+.k      addq.l  #1,SH_CLKVWRAP          ; by the vblank count (exact while they come)
+        cmp.l   SH_CLKVWRAP,d0
+        bhs     .m
+        move.l  SH_CLKVWRAP,d0
+.m      move.l  d0,SH_CLKVWRAP          ; the larger: the clock never runs back
+        move.l  d0,SH_CLKWRAP
+        bra     ee_now_s
 ee_now:
         move.w  #$1ff,d1
         sub.w   CPS2_CPSB+$12,d1        ; scanline 0..261
         cmp.w   SH_CLKLINE,d1
         bhs     .s
         addq.l  #1,SH_CLKWRAP
-.s      move.w  d1,SH_CLKLINE
-        move.l  SH_CLKWRAP,d0
-        mulu.w  #262,d0
+.s
+ee_now_s:
+        move.w  d1,SH_CLKLINE
+        move.w  SH_CLKWRAP,d0           ; frames * 262 in 32 bits (a 16-bit multiply
+        mulu.w  #262,d0                 ; ran the clock back after 65536 frames, about
+        swap    d0                      ; 18 minutes: every later wait was ~65536 frames)
+        clr.w   d0
         ext.l   d1
+        add.l   d1,d0
+        move.w  SH_CLKWRAP+2,d1
+        mulu.w  #262,d1
         add.l   d1,d0
         rts
 
@@ -144,8 +169,8 @@ ee_until:
 .u      move.l  d0,d2
         add.l   SH_EET0,d2
 .w      bsr     ee_now
-        cmp.l   d2,d0
-        blt     .w
+        sub.l   d2,d0                   ; by difference: right across the wrap
+        bmi     .w
         movem.l (sp)+,d1-d2
         rts
 
@@ -165,8 +190,8 @@ ee_busywait:
         bsr     ee_now
         add.l   d0,d2
 .w      bsr     ee_now
-        cmp.l   d2,d0
-        blt     .w
+        sub.l   d2,d0                   ; by difference: right across the wrap
+        bmi     .w
         movem.l (sp)+,d0-d2
         rts
 

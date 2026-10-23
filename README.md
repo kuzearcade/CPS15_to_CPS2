@@ -89,7 +89,9 @@ make -j14
 The converter uses executed-PC coverage of the **original** sets as evidence.
 
 - 68k: `work/jobs/cov_*_<set>/cov_maincpu.bin`
-- Z80: `cov_audiocpu.bin` in any `work/jobs/*_<set>/` folder
+- Z80: `work/jobs/cov_*_<set>/cov_audiocpu.bin`, used as a cross-check: the Z80
+  image is decoded statically (reset, IRQ and the drivers' jump tables), and the
+  build stops if a recorded PC is not part of that decode
 
 Without them it stops with `no Z80 coverage for <set>: run the coverage jobs
 first`. Record them with MAME built in step 2:

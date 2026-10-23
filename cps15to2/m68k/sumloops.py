@@ -29,6 +29,7 @@ MAX_FORKS = 16
 _add = re.compile(r"^(?:add|sub|cmp|and|or)\.([bwl])$")   # summing / comparing loops
 _post = re.compile(r"^\((a[0-6])\)\+,(d[0-7])$")
 _ind = re.compile(r"^\((a[0-6])\),(d[0-7])$")
+_dind = re.compile(r"^(-?\$?[0-9a-f]+)\((a[0-6])\),(d[0-7])$")
 _inc = re.compile(r"^(?:addq\.[wl])$")
 _mov = re.compile(r"^move\.([bwl])$")
 _acc = re.compile(r"^(?:add|sub|eor|cmp)\.[bwl]$")
@@ -50,6 +51,7 @@ class Loop:
     refs: list = field(default_factory=list)
     cands: list = field(default_factory=list)  # every mem/imm operand in the slice
     reeval: object = None    # reeval(reader) -> (start, end) of this variant with other ROM bytes
+    disp: int = 0            # d16(An) element: the region is An + disp on
 
 
 def _loops(prog):
@@ -59,8 +61,18 @@ def _loops(prog):
     for a in pcs:
         ins = prog.code[a]
         m = _add.match(ins.mn)
-        head_at = None
+        head_at, disp = None, 0
         mo = _post.match(ins.ops.replace(" ", "")) if m else None
+        if m and not mo:
+            # add d16(An),Dx with An advanced by addq #k,An further on (Muscle Bomber
+            # $67992 sums 22 words at $38 past its pointer; a mismatch sabotages a5)
+            md = _dind.match(ins.ops.replace(" ", ""))
+            if md and any(_advances(prog.code[pcs[j]], md.group(2))
+                          for j in range(idx[a] + 1, min(idx[a] + 5, len(pcs)))):
+                d = md.group(1)
+                disp = int(d.replace("$", ""), 16 if "$" in d else 10)
+                mo = _ind.match(f"({md.group(2)}),{md.group(3)}")
+                head_at = a
         if m and not mo:
             # add (An),Dx with An advanced by lea k(An),An (Slam Masters $532AA sums 64
             # words, the count derived from the expected sum; a mismatch redirects the
@@ -134,7 +146,7 @@ def _loops(prog):
                 if t is not None and t <= a and t in idx and (t, mo.group(1)) not in heads:
                     heads.add((t, mo.group(1)))  # unrolled: one loop per head and stream
                     body = [prog.code[pcs[i]] for i in range(idx[t], end + 1)]
-                    out.append(Loop(a, t, mo.group(1), {"b": 1, "w": 2, "l": 4}[m.group(1)], body))
+                    out.append(Loop(a, t, mo.group(1), {"b": 1, "w": 2, "l": 4}[m.group(1)], body, disp=disp))
                 break
     return out
 
@@ -267,6 +279,9 @@ def _bounds(lp, F, reader):
     start = full(F.get(lp.an, symaddr.UNK))
     if start is None:
         return None, None, "base unknown"
+    if lp.disp:                         # d16(An) elements: the region and its bound move
+        s, e, why = _bounds(Loop(lp.pc, lp.head, lp.an, lp.size, lp.body), F, reader)
+        return s + lp.disp, (e + lp.disp if e is not None else None), why
     regs = symaddr.Regs(dict(F), reader)
     for i in lp.body:
         ops = symaddr.split_ops(i.ops)
@@ -283,36 +298,52 @@ def _bounds(lp, F, reader):
                 return start, e, ""
         elif i.mn.startswith("db") and _isreg.match(ops[0]):
             c = full(F.get(ops[0], symaddr.UNK), 2)
-            if c is not None:
-                return start, start + (c + 1) * _step(lp), ""
+            st = _step(lp, F)
+            if c is not None and st is not None:
+                return start, start + (c + 1) * st, ""
         elif (i.mn.startswith("subq") or i.mn.startswith("subi")) and len(ops) == 2 \
                 and _isreg.match(ops[1]) and ops[1].startswith("d"):
             sz = symaddr.SIZES.get(i.mn.partition(".")[2], 2)
             q = int(ops[0][2:], 16) if ops[0].startswith("#$") else int(ops[0][1:])
             c = full(F.get(ops[1], symaddr.UNK), sz)
-            if c is not None and c > 0 and c % q == 0:
-                return start, start + c // q * _step(lp), ""
+            st = _step(lp, F)
+            if c is not None and c > 0 and c % q == 0 and st is not None:
+                return start, start + c // q * st, ""
     return start, None, "bound unknown"
 
 
-def _advances(ins, an):
-    """Bytes `ins` adds to address register an (addq #k,an / lea k(an),an), else 0."""
+def _advances(ins, an, F=None):
+    """Bytes `ins` adds to address register an (addq #k,an / lea k(an),an / lea (an,dk.w),an
+    with dk known in the state F), else 0; -1 for a register step F does not give."""
     o = ins.ops.replace(" ", "")
     m = re.match(r"^#\$?([0-9a-f]+)," + an + "$", o) if _inc.match(ins.mn) else None
     if m:
         return int(m.group(1), 16 if "$" in o else 10)
     m = re.match(r"^\$([0-9a-f]+)\(" + an + r"\)," + an + "$", o) if ins.mn.startswith("lea") else None
-    return int(m.group(1), 16) if m else 0
+    if m:
+        return int(m.group(1), 16)
+    # lea (An,Dk.w),An: by a register, its value comes from the loop-entry state
+    # (Slam Masters $53882 steps by a register set to 2 before the loop, over the $67992 region)
+    m = re.match(r"^\(" + an + r",(d[0-7])\.w\)," + an + "$", o) if ins.mn.startswith("lea") else None
+    if m:
+        v = (F or {}).get(m.group(1), symaddr.UNK)
+        k = symaddr._sx(v[0], 2) if symaddr.full(v, 2) else 0
+        return k if 0 < k <= 16 else -1     # -1: a step of unknown size
+    return 0
 
 
-def _step(lp):
+def _step(lp, F=None):
     """Bytes the base register advances per iteration: every (An)+ of the body (an
-    unrolled loop reads several elements per pass), and addq / lea increments of An."""
+    unrolled loop reads several elements per pass), and addq / lea increments of An.
+    None when an increment is a register the entry state F does not give."""
     n = 0
     for i in lp.body:
         if f"({lp.an})+" in i.ops.replace(" ", ""):
             n += symaddr.SIZES.get(i.mn.partition(".")[2], 2)
-        n += _advances(i, lp.an)
+        k = _advances(i, lp.an, F)
+        if k < 0:
+            return None
+        n += k
     return n or lp.size
 
 
@@ -455,7 +486,7 @@ def analyse(prog, preds, rom):
         if not res:
             res = [({}, {}, (None, None, "no feasible entry path"), [])]
         for n, (states, F, (start, end, why), path) in enumerate(res):
-            v = Loop(lp.pc, lp.head, lp.an, lp.size, lp.body, n if len(res) > 1 else 0, start, end, why)
+            v = Loop(lp.pc, lp.head, lp.an, lp.size, lp.body, n if len(res) > 1 else 0, start, end, why, disp=lp.disp)
             if start is not None and end is not None and start < len(rom):
                 v.refs = _refs(prog, reader, v, path, states, F)
                 v.reeval = _reevaluator(prog, ev, lp, path, n, len(res), split, fork, preds, bodyset)

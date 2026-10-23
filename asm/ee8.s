@@ -87,9 +87,9 @@ rd_ee8:
 .x      rts
 .rdy    movem.l d1,-(sp)
         bsr     ee8_now
-        cmp.l   EE8_DONE,d0
+        sub.l   EE8_DONE,d0             ; by difference: right across the wrap
         movem.l (sp)+,d1
-        blt     .busy
+        bmi     .busy
         moveq   #1,d0
         rts
 .busy   moveq   #0,d0
@@ -141,8 +141,8 @@ ee8_clk:
         move.l  d1,-(sp)
         bsr     ee8_now
         move.l  (sp)+,d1
-        cmp.l   EE8_DONE,d0
-        blt     .x                      ; busy: start bit ignored
+        sub.l   EE8_DONE,d0             ; by difference: right across the wrap
+        bmi     .x                      ; busy: start bit ignored
         clr.w   EE8_ACC
         clr.w   EE8_BITS
         move.w  #ST_CMD,EE8_ST

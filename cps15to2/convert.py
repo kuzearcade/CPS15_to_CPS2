@@ -428,6 +428,11 @@ def sum_shadows(prog, rom, patched, sites, shadow_ptr):
     if bad:
         raise ConvertError("summing loops not relocated:\n" + "\n".join(bad))
     report = [f"{l.pc:06x}/{l.variant} {l.start:06x}-{l.end:06x}" for l in sel]
+    for l in loops:
+        # a region off the program ROM means the loop was misread: report it, never drop
+        # it silently (Slam Masters $5EE3C, while -(An) reads were evaluated as (An))
+        if l.start is not None and l.end is not None and not l.start < l.end <= patcher.CAVE:
+            l.why, l.end = "region off the program ROM", None
     unresolved = [l for l in loops if (l.start is None or l.end is None)]
     return out, shadows, shadow_ptr, report, unresolved
 
@@ -748,9 +753,11 @@ def check_indirect(sites, rows, prog):
 
 
 def z80_coverage(setname):
-    """Executed Z80 PCs (< 0x8000) from every MAME coverage run of this set."""
+    """Executed Z80 PCs (< 0x8000) from the coverage runs of this set (cov_<scenario>_
+    <set>, tools/coverage.py: the original game; other job folders may hold runs of
+    the conversion)."""
     pcs = set()
-    for f in glob.glob(str(ROOT / f"work/jobs/*_{setname}/cov_audiocpu.bin")):
+    for f in glob.glob(str(ROOT / f"work/jobs/cov_*_{setname}/cov_audiocpu.bin")):
         b = Path(f).read_bytes()[:0x8000 // 8]
         for i, byte in enumerate(b):
             if byte:
@@ -763,13 +770,15 @@ def z80_coverage(setname):
 def build_z80(regions, keyname, setname):
     raw = bytes(regions["audiocpu"])
     ops, data = z80.decrypt(raw, keyname)
+    # static: reset, the IRQ and the jump tables; the coverage runs only cross-check it
+    # (seeding from them left table-only stubs as data in the sets whose runs missed them)
     cov = z80_coverage(setname)
     if not cov:
         raise ConvertError(f"no Z80 coverage for {setname}: run the coverage jobs first")
-    insns = z80dec.walk(ops, data, [0x0000, 0x0038] + sorted(cov))
+    insns = z80dec.walk(ops, data, [0x0000, 0x0038])
     missing = [a for a in cov if a not in insns]
     if missing:
-        raise ConvertError(f"executed Z80 PCs not decodable as instruction starts: {[hex(a) for a in missing[:8]]}")
+        raise ConvertError(f"executed Z80 PCs the static walk does not reach: {[hex(a) for a in missing[:8]]}")
     img, conflicts = z80dec.merge(ops, data, insns)
     if conflicts:
         raise ConvertError(f"Z80 opcode/data conflicts at {conflicts[:8]}")
@@ -1137,6 +1146,27 @@ def convert(setname, outdir=ROOT / "out", romdir=ROOT / "mame_roms", workdir=ROO
             no_jmp += [(x.pc, x.pc + 1) for x in sites if x.action == "stub"
                        and not (x.pc < l.end and l.start < x.pc + 2)
                        and x.pc + 2 < l.end and l.start < x.pc + 6]
+    # code bytes the game reads as data through a fixed pc-relative or absolute operand
+    # (Muscle Bomber $65ACE takes a checksum loop's count from the immediate of the
+    # CPS-B write at $65AB0): a site whose jmp form would change them keeps the A-line form.
+    # Readers that are sites themselves (self-checks moved to shadow copies) are not counted.
+    data_reads = []
+    redirected = {x.pc for x in sites if x.action != "ignore"}
+    for ins in prog.code.values():
+        if ins.addr in redirected:
+            continue
+        if re.match(r"(?:lea|pea|jmp|jsr|b(?:ra|sr|hi|ls|cc|cs|ne|eq|vc|vs|pl|mi|ge|lt|gt|le)|db[a-z]{1,2})\b", ins.mn):
+            continue
+        m = re.search(r"\.([bwl])$", ins.mn)
+        n = {"b": 1, "w": 2, "l": 4}[m.group(1)] if m else 2
+        n *= 16 if ins.mn.startswith("movem") else 1
+        data_reads += [(t, t + n, ins.addr) for t, indexed in ins.pcrel if not indexed]
+        data_reads += [(t, t + n, ins.addr) for t in ins.abs_refs if t < prog.rom_end]
+    for x in sites:
+        rd = [r for lo, hi, r in data_reads if lo < x.pc + 6 and x.pc + 2 < hi]
+        if x.action == "stub" and rd:
+            no_jmp.append((x.pc, x.pc + 1))
+            x.note = (x.note + "; " if x.note else "") + "operand read as data at " + ", ".join(f"${r:x}" for r in rd)
     # displaced instructions that are sites run as their A-line traps from the trampoline
     # (a jmp-form stub would return to the ROM); no site added since may overlap a hook
     for pc, n, al in hooked:

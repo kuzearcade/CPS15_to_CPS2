@@ -85,8 +85,44 @@ def decode(ops, addr):
 
 
 def walk(ops, data, entries, limit=0x8000):
-    """Recursive descent. Returns {addr: (length, m1_offsets)} for decoded insns
+    """Recursive descent that also follows inline jump tables (see jump_tables) until
+    no new table entry appears. Returns {addr: (length, m1_offsets)} for decoded insns
     starting below `limit` (code beyond limit is in banked ROM, not encrypted)."""
+    entries = list(entries)
+    while True:
+        seen = _descend(ops, data, entries, limit)
+        new = sorted({e for ents in jump_tables(ops, data, seen).values() for e in ents} - set(entries))
+        if not new:
+            return seen
+        entries += new
+
+
+def jump_tables(ops, data, insns, limit=0x8000):
+    """Inline dispatch tables: `ld rr,J+1` shortly before a `jp (hl)` at J, with the
+    word table right after the jump (the QSound drivers dispatch commands this way:
+    the stubs reached only through a table were left as data, 2026-10-22). A table
+    runs up to its lowest target, where the code after it starts.
+    Returns {J: [targets]}."""
+    out = {}
+    for j in insns:
+        if ops[j] != 0xE9:
+            continue
+        if not any(a in insns and ops[a] in (0x01, 0x11, 0x21) and (data[a + 1] | data[a + 2] << 8) == j + 1
+                   for a in range(j - 12, j)):
+            continue
+        t, ents, end = j + 1, [], limit
+        while t + 1 < end:
+            w = data[t] | data[t + 1] << 8
+            if not j < w < limit:
+                break
+            ents.append(w)
+            end = min(end, w)
+            t += 2
+        out[j] = ents
+    return out
+
+
+def _descend(ops, data, entries, limit):
     seen = {}
     work = list(entries)
     while work:

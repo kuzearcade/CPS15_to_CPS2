@@ -54,6 +54,7 @@ SH_EE8          equ     SHIM+$1c80      ; $24 bytes: x8 EEPROM emulator state (e
 SH_EE8MIR       equ     SHIM+$1d00      ; 128 bytes: x8 EEPROM mirror
 SH_CLKLINE      equ     SHIM+$1d80      ; w: line clock: scanline at the previous read
 SH_CLKWRAP      equ     SHIM+$1d82      ; l: line clock: frames
+SH_CLKVWRAP     equ     SHIM+$1d8c      ; l: line clock: frames at the last vblank (ee_now_vbl)
 SH_EET0         equ     SHIM+$1d86      ; l: start time of the current EEPROM API call
 SH_CLKSCALE     equ     SHIM+$1d8a      ; w: CPU speed / nominal (ee_clkscale)
 SH_SPRREADY     equ     SHIM+$1d90      ; byte: converted list waiting in the hidden bank
@@ -649,6 +650,7 @@ hal_vbl:
         lea     VBL_STACK,sp
         movem.l d0-d3/a0-a1,-(sp)
         CHECKINIT
+        bsr     ee_now_vbl              ; the line clock sees every frame
         move.b  SH_PALDUE,d2            ; no palette upload by the game since the last
         or.b    SH_PALNEW,d2            ; vblank: show the sprite page (below)
         ; positions first: the board takes them early in the vblank (a bank flip
@@ -1319,8 +1321,8 @@ pal_show:
         move.l  d0,d2
         addq.l  #PAL_LATCH,d2
 .w2     bsr     ee_now
-        cmp.l   d2,d0
-        blt     .w2
+        sub.l   d2,d0                   ; by difference: right across the wrap
+        bmi     .w2
         move.w  #PAL_PAGES,CPS2_PALCTRL
         movem.l (sp)+,d0-d2/a0
         rts
