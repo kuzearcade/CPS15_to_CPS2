@@ -168,7 +168,6 @@ def stub_code(n, rom, site, form="aline"):
 
 
 CPSA_SLOW = {0x00, 0x0a, 0x22}       # OBJ base, palette base, video control: HAL work on write
-CPSA_NOW = {0x02, 0x04, 0x06}        # tilemap bases: to the hardware at once (hal.s wr_cpsa)
 
 
 def fast_code(rom, site, cfg):
@@ -176,8 +175,8 @@ def fast_code(rom, site, cfg):
     game's vblank handler copies its scroll and base values into the CPS-A one after
     another, and through the A-line dispatcher each costs about a scanline. The original
     instruction writes the HAL image instead (same flags: N/Z of the value, V=C=0, X
-    kept); tilemap bases then go to the register at once, the other CPS-A registers
-    at the next vblank (hal_vbl, frame delay).
+    kept); the CPS-A registers, tilemap bases included, go to the hardware at the
+    next vblank (hal_vbl, frame delay).
     Runs on the game's stack and interrupt level without touching either. CPS-B
     registers other than layer and palette control are shadow only. Returns None when
     the site needs the full stub."""
@@ -192,11 +191,8 @@ def fast_code(rom, site, cfg):
         v = int(m.group(1), 16) & 0xFFFFFF
         if 0x800000 <= v < 0x800200 or 0xF00000 <= v < 0xFF0000:
             return None
-    hw = None
     if 0x800100 <= a < 0x800140 and a - 0x800100 not in CPSA_SLOW:
         shadow = 0x907C00 + (a - 0x800100)               # SH_CPSA
-        if a - 0x800100 in CPSA_NOW:
-            hw = a                                       # CPS2 has CPS-A at $800100 too
     elif 0x800140 <= a < 0x800180 and a - 0x800140 not in (int(cfg["CPSB_LAYER_OFF"][1:], 16),
                                                            int(cfg["CPSB_PALCTRL_OFF"][1:], 16)):
         shadow = 0x906020 + (a - 0x800140)               # SH_CPSB
@@ -213,8 +209,6 @@ def fast_code(rom, site, cfg):
     L = [f"; site ${site.pc:06x}: {ci.mnemonic} {ci.op_str}   [fast W]",
          f"{site.stub_label}:",
          f"        dc.w    {words}"]
-    if hw is not None:
-        L.append(f"        move.w  SH_CPSA+${a - 0x800100:02x},${hw:06x}")
     L.append(f"        jmp     ${site.pc + ci.size:06x}")
     return "\n".join(L) + "\n"
 

@@ -1100,8 +1100,7 @@ wr_vidctrl:
         move.w  d2,SH_CPSA+$22
         rts
 
-; any other CPS-A register: record in the image (overlay engine, vid_apply); the
-; tilemap bases go to the hardware at once
+; any other CPS-A register: record in the image (overlay engine, vid_apply)
 wr_cpsa:
         subi.l  #$800100,d1
 wr_cpsa_off:                            ; direct entry: d1.w = offset, d2 = data
@@ -1109,13 +1108,7 @@ wr_cpsa_off:                            ; direct entry: d1.w = offset, d2 = data
         move.w  d2,(a0,d1.w)
         cmpi.w  #$0a,d1                 ; palette upload
         beq     pal_trigger
-        cmpi.w  #$06,d1
-        bhi     .x
-        tst.w   d1
-        beq     .x
-        lea     $800100,a0              ; scroll1-3 bases
-        move.w  d2,(a0,d1.w)
-.x      rts
+        rts
 
 ; CPS-A register writes one word at a time, spaced as CPS2 games space them (SFA:
 ; 44+ cycles apart, never a long write): back-to-back writes (move.l) were lost
@@ -1128,13 +1121,22 @@ wr_cpsa_off:                            ; direct entry: d1.w = offset, d2 = data
         endm
 
 ; positions written during the last frame, at the vblank (hal_vbl): CPS-A
-; scrolls, row scroll and video control from the image (enables stay as written),
-; layer order. Row scroll: the table is copied as it is now (the 256 entries from
-; the offset) and shown from ROWBUF. Every register is written each frame (a
+; tilemap bases, scrolls, row scroll and video control from the image (enables stay
+; as written), layer order. A base goes with its scroll: Slam Masters flips
+; scroll2/3 between copies of the floor, base and scroll together, and a base
+; applied a frame before its scroll drew the floor from the wrong rows. Row
+; scroll: the table is copied as it is now (the 256 entries from the offset) and
+; shown from ROWBUF. Every register is written each frame (a
 ; lost write lasts one frame). Uses d0-d1/a0-a1.
 vid_apply:
         lea     SH_CPSA,a0
         lea     $800100,a1
+        move.w  $02(a0),$02(a1)         ; scroll1-3 bases
+        CPSA_GAP
+        move.w  $04(a0),$04(a1)
+        CPSA_GAP
+        move.w  $06(a0),$06(a1)
+        CPSA_GAP
         move.w  $0c(a0),$0c(a1)         ; scroll1 x
         CPSA_GAP
         move.w  $10(a0),$10(a1)         ; scroll2 x

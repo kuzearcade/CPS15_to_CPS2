@@ -126,7 +126,7 @@ python3 -m cps15to2.convert wof wofr1 wofu wofa wofj \
 ```
 
 Each set prints one summary line, for example
-`wofc2: cave 0x39ae, 142 sites, 19910 overlay tiles`. Builds of different sets are
+`wofc2: cave 0x398e, 142 sites, 19910 overlay tiles`. Builds of different sets are
 independent and can run in parallel.
 
 Output:
@@ -154,24 +154,24 @@ done
 
 | Set | `out/mame/<set>/` | `out/darksoft/<set>/` |
 |---|---|---|
-| wofc2 | `473625623c6cb947f107fef0db22a1c377ec404e` | `485e265620e81edb5821509d660a753d2c612f4c` |
-| wofr1c2 | `30e5dfa188390c455691c4753d072ac3333e4880` | `574cb56764bd3fea74fc19e788b06d66115038c2` |
-| wofuc2 | `37159c6aa5cc212ca7bbbb5a5638492d58cac896` | `b8b00630315ce1e4335aa6e368572ef41d689e37` |
-| wofac2 | `99cdb99540a0e45eaee7f4a554c74fdc682f92fa` | `ec25e4eb4fb187bc8a08f38d2ebb6f7c0aec8eca` |
-| wofjc2 | `638e9003d5d5e546156fe63537e5e86d5091280d` | `62e452625acc03e0a1272d15d947518a04138f54` |
-| dinoc2 | `9c2eb3fe979b2a5d07ad8a56a573804104e88be4` | `3da32c89450c08142b098bfe3fd74d25d4230682` |
-| dinouc2 | `d710cfbe476a868d8d25fc2e9794f1c766829471` | `36220bbc17624076c50fb81f7679e9ac165ea7b4` |
-| dinojc2 | `07c4564a7aa519705fc95e608c6b67f39dae0f8f` | `f4ad93346fe48a8964fe94426f3055e2be25f9ec` |
-| dinoac2 | `ab43baa0fba2e19955f82b87a9d958950bd98a7d` | `05c88e9fe43609df2b201f641a5cbc485a1662bf` |
-| punisherc2 | `cd6dc85167822b74061a0b178ae3da70cafafb7d` | `ebd282b4781b553ef4dbe1c9dfafa834a078c15d` |
-| punisheruc2 | `316c63626eed045e0acc886bed662d6ca523d2c9` | `4b3e14f8beabe574cac809fe2f84ba861ebebd32` |
-| punisherhc2 | `f0a768d416efc988df17e4572240385135ddfd23` | `fc6a24d1148639dcb79516f6e5d119229aeb72ba` |
-| punisherjc2 | `4f0086ddb56871b35acb6f7b388e86ad6b6d820f` | `4193eb877953ce10194735b1c15d951ee6a3001c` |
-| slammastc2 | `be7b69334d2c007094e1d58bcffdd95212ba45f1` | `9fd14911ddcfb44317e4814268dd42cb4ecbcff8` |
-| slammastuc2 | `8715cfd4d84921a2b1f113877cd5623c9699a32d` | `edecc7228e92946de1c19aa8e80add676338bec8` |
-| mbomberjc2 | `1022d17d3bd4cdcb895abec4ec94a172afda6625` | `433a50d2c27cb68d102080c8562077f92ab55d67` |
-| mbombrdc2 | `a508414263a2bd608081d86e135ae139e4bf739b` | `d4ad1b3fdaaa9ced26ff59731ef9aa5cf7b888b1` |
-| mbombrdjc2 | `1fa878cd482cd7499e9a3e14acea31f9ec5d5635` | `dd28f353fc5571424b8c97c00d26c92487006d29` |
+| wofc2 | `b5e4a8ce6e6a0e5a4cf4013d39bd9b1beeb5aedd` | `f8c67b6767a3209a542d5101ca84f46d057bf2b3` |
+| wofr1c2 | `7a07dd8c20ccc2b5b8853420c873e2347e6083fd` | `fc5498b8faecaf1a56958c5e5663d3d01b6fadb1` |
+| wofuc2 | `dae99ab85dde22e6983293a0018730d033ab475a` | `8743d7dd4971b017e02fc4335ea2e67695e21545` |
+| wofac2 | `61b800abd340bfe68ee7e399ef7150f3686ac63c` | `9dd699d254724833e21b8172dabeb0cefdfe55c0` |
+| wofjc2 | `fce5db5efc901f08ca46e3f5d82ed72b3acfc61e` | `99f2da79dafc3c21dbef3b230b0f0386f9ce9e22` |
+| dinoc2 | `b2899b9eed6608834dd7266ddfa37360e30025e7` | `4754527b13958b6beeccd6840c0383c2e39efa21` |
+| dinouc2 | `c0fc669ebe159b5a60f3788057729d588adb5bdd` | `067d60356ce78e9f4e2c492367bd28c041cb1178` |
+| dinojc2 | `df419b6f1f388f11282a90060917463a7b75ba9f` | `0006f8115f8a98a42a7fd028d5f3ebcc1da87e30` |
+| dinoac2 | `b20c5522a18c01bb39ce0802b594c57e408d3590` | `94ac555945f7fe5bfda8e51b6fc3e0b899cb8cff` |
+| punisherc2 | `28626132ab9b5fb8e34dedf269a7074db953f7ff` | `277e910df83dd0c29af3ffbd61e56a32b63ff8e7` |
+| punisheruc2 | `fcf352a87ba0556193b5ff7c03e90f7da541e20f` | `82679303e5a244453788d05a34f2bed2c8dd475b` |
+| punisherhc2 | `b112f878b4740f8eaece3db492f8e5cfdb08959d` | `b48c477de78a4617ae22deb10067f6749b23abee` |
+| punisherjc2 | `c2f35a7275d48ee3d6d72883230a30fdfb64dfd3` | `858f5bfb1eab8bbdae4c36d5f9442814487b2d64` |
+| slammastc2 | `88aed19a43a76908eff6f3771a79f9f3bd8b18f3` | `311352df1d8548645d7976350026f1c1b86e6f20` |
+| slammastuc2 | `10a5b35293c051f1bcc45e40f421432c1d423ebb` | `06436cbca980c70560b41522ee8cdf5f3ed832ac` |
+| mbomberjc2 | `fe812e4e895c55d84ab0f6ad833851b0032ffc00` | `579921d0acbde27a10be3e5d44a40ad01f06faa0` |
+| mbombrdc2 | `8845713143d9d9d022271c55205a877f0bd2783d` | `a1007dd9618bf31665f1d4e6824a3b276ff87709` |
+| mbombrdjc2 | `a412482640cbe98493f8a195905033777200d4b9` | `725ba72b53be6e819ceeb62d05b1c6d38247f09d` |
 
 ### 5. Add the sets to MAME
 
