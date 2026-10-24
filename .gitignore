@@ -14,3 +14,5 @@ analysis/cheats/
 tools/vasm.tar.gz
 # design notes (kept local)
 PLAN.md
+# third-party MAME input recordings (MARP), kept local for testing
+marp/

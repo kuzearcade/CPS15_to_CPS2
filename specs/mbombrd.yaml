@@ -21,6 +21,7 @@ eeprom:
   symbols:
     EE_TRAP: {pc: 0x000b3c}
 overrides:
+  0x01c354: {action: ignore, note: "input test: base $800000 of a table of input addresses ($8000xx and $F1C00x); the read at $1C37A is run-time mapped, so the base stays CPS1"}
   0x01bf74: {action: ignore, note: "write to $800180 (CPS1 sound latch): not mapped on QSound boards, a no-op"}
   0x01bf7c: {action: ignore, note: "write to $800188: not mapped on QSound boards, a no-op"}
   0x042f12: {action: ignore, note: "subtracts the immediate $800000: 16.16 coordinate arithmetic"}

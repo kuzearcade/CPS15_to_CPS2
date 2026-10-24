@@ -68,6 +68,32 @@ def smoke(players, buttons, end=20000, seed=1, credit=False):
     return mv
 
 
+def inputtest(codebase):
+    """Service mode input test: every player's inputs one at a time (3P/4P included),
+    then 1P Start held (the test's monitor flip). Returns (movie, frames)."""
+    mv = Movie()
+    late = codebase in ("wof", "wof_def", "punisher")   # these ignore the switch while booting
+    b = 1500 if late else 300
+    mv.hold(["Service Mode"], b, 20)
+    if late:
+        mv.tap(["P1 Down"], b + 300, 4)                  # cursor starts on EXIT
+    mv.tap(["P1 Button 1"], b + 400, 4)                  # 1: input (& output) test
+    f = b + 600
+    for p in range(1, 5):
+        for n in ("Right", "Left", "Down", "Up", "Button 1", "Button 2", "Button 3"):
+            mv.hold([f"P{p} {n}"], f, 10)
+            f += 20
+        mv.hold([f"Coin {p}"], f, 10)
+        f += 20
+        if p > 1:                                        # 1P Start: below; 1P+2P exits Punisher's test
+            mv.hold([f"{p} Players Start"], f, 10)
+            f += 20
+    mv.hold(["Service 1"], f, 10)
+    f += 40
+    mv.hold(["1 Player Start"], f, 90)
+    return mv, f + 200
+
+
 def service(end=6000):
     """Enter service mode and walk the menu with P1 controls."""
     mv = Movie()

@@ -1,9 +1,10 @@
-"""Record the coverage evidence the converter needs: for every original set, three
+"""Record the coverage evidence the converter needs: for every original set, four
 MAME runs with the opt-in executed-PC bitmaps (MAME_COVERAGE_DIR) and the I/O tap.
 
   smoke     coin-up and random play with every player (movies.smoke, seed 1), 20000 frames
   smoke1p   the same with player 1 only (seed 2)
   service   service mode menu walk (movies.service), 6000 frames
+  inputtest service mode input test, every player's inputs (movies.inputtest)
 
 Each run writes work/jobs/cov_<scenario>_<set>/cov_{maincpu,audiocpu}.bin, which
 convert.py reads (68k I/O evidence, Z80 opcode/data merge). The I/O logs go to
@@ -13,6 +14,7 @@ Runs at normal CPU speed, up to 14 in parallel.
 
 usage: python3 -m tools.coverage [set ...]        (default: all 18)
        python3 -m tools.coverage --check [set ...] compare with analysis/iotap
+       --scenario NAME (repeatable) runs only those scenarios
 """
 import argparse
 import shutil
@@ -28,15 +30,17 @@ SCENARIOS = {
     "smoke": lambda info: (movies.smoke(info.players, info.buttons), 20000),
     "smoke1p": lambda info: (movies.smoke(1, info.buttons, seed=2), 20000),
     "service": lambda info: (movies.service(), 6000),
+    "inputtest": lambda info: movies.inputtest(info.codebase),
 }
 
 
-def jobs_for(setname):
+def jobs_for(setname, scenarios=SCENARIOS):
     info = SETS[setname]
     mdir = ROOT / "work/movies"
     mdir.mkdir(parents=True, exist_ok=True)
     jobs = []
-    for tag, make in SCENARIOS.items():
+    for tag in scenarios:
+        make = SCENARIOS[tag]
         mv, frames = make(info)
         path = mdir / f"cov_{tag}_{setname}.mov"
         mv.save(path, frames)
@@ -52,11 +56,12 @@ def main():
     ap.add_argument("sets", nargs="*", default=list(SETS))
     ap.add_argument("--iotap", action="store_true", help="also update analysis/iotap/<set>_<scenario>.txt")
     ap.add_argument("--check", action="store_true", help="compare the I/O logs with analysis/iotap")
+    ap.add_argument("--scenario", action="append", choices=list(SCENARIOS), help="run only these scenarios")
     a = ap.parse_args()
     bad = [s for s in a.sets if s not in SETS]
     if bad:
         ap.error(f"unknown sets: {bad}")
-    jobs = [j for s in a.sets for j in jobs_for(s)]
+    jobs = [j for s in a.sets for j in jobs_for(s, a.scenario or SCENARIOS)]
     for j in jobs:      # stale bitmaps from an older run must not survive a failed one
         for f in ("cov_maincpu.bin", "cov_audiocpu.bin", "iotap.txt"):
             (ROOT / "work/jobs" / j["id"] / f).unlink(missing_ok=True)

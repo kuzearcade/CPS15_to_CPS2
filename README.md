@@ -100,21 +100,23 @@ first`. Record them with MAME built in step 2:
 python3 -m tools.coverage            # all 18 sets; or name sets: python3 -m tools.coverage wof dino
 ```
 
-This makes three runs per original set, 54 in all, up to 14 at a time. It takes
-about 4 minutes. The runs use fixed input movies, so they are deterministic:
+This makes four runs per original set, 72 in all, up to 14 at a time. It takes
+about 5 minutes. The runs use fixed input movies, so they are deterministic:
 
 | Run | Movie | Frames |
 |---|---|---|
 | `cov_smoke_<set>` | coin-up and random play with every player (`movies.smoke`, seed 1) | 20,000 |
 | `cov_smoke1p_<set>` | the same with player 1 only (seed 2) | 20,000 |
 | `cov_service_<set>` | service menu walk (`movies.service`) | 6,000 |
+| `cov_inputtest_<set>` | service mode input test, every player's inputs (`movies.inputtest`) | 1,840 (WoF, Punisher: 3,040) |
 
 Each run also logs the game's I/O accesses to `work/jobs/cov_<run>_<set>/iotap.txt`.
 `--check` compares those logs with the committed `analysis/iotap/<set>_<run>.txt`.
 `--iotap` overwrites the committed logs with the new ones.
+`--scenario NAME` (repeatable) records only those runs.
 
 The tool reproduces the original traces exactly: all 108 bitmaps and 54 I/O logs
-are byte-identical. All 18 sets rebuilt from them are byte-identical too.
+of the first three runs are byte-identical, and so are the 18 input test I/O logs. All 18 sets rebuilt from them are byte-identical too.
 
 ### 4. Convert
 
@@ -167,11 +169,11 @@ done
 | punisheruc2 | `fcf352a87ba0556193b5ff7c03e90f7da541e20f` | `82679303e5a244453788d05a34f2bed2c8dd475b` |
 | punisherhc2 | `b112f878b4740f8eaece3db492f8e5cfdb08959d` | `b48c477de78a4617ae22deb10067f6749b23abee` |
 | punisherjc2 | `c2f35a7275d48ee3d6d72883230a30fdfb64dfd3` | `858f5bfb1eab8bbdae4c36d5f9442814487b2d64` |
-| slammastc2 | `88aed19a43a76908eff6f3771a79f9f3bd8b18f3` | `311352df1d8548645d7976350026f1c1b86e6f20` |
-| slammastuc2 | `10a5b35293c051f1bcc45e40f421432c1d423ebb` | `06436cbca980c70560b41522ee8cdf5f3ed832ac` |
-| mbomberjc2 | `fe812e4e895c55d84ab0f6ad833851b0032ffc00` | `579921d0acbde27a10be3e5d44a40ad01f06faa0` |
-| mbombrdc2 | `8845713143d9d9d022271c55205a877f0bd2783d` | `a1007dd9618bf31665f1d4e6824a3b276ff87709` |
-| mbombrdjc2 | `a412482640cbe98493f8a195905033777200d4b9` | `725ba72b53be6e819ceeb62d05b1c6d38247f09d` |
+| slammastc2 | `4ff88efe78c2f5d3df39461aa92dff2500697d01` | `34b3bdfc2c0494b6e94aa57b0d1c3111d34434ff` |
+| slammastuc2 | `68f7410ff4f4b5dbe4ecd74b85a4921fdfe0c1eb` | `7b158ec217f6388f68b67af276ebece0bbf6ed71` |
+| mbomberjc2 | `707e968b46a71d56dc2d7e2244a1b5504e87daea` | `eecf1d23ea440a1c8b928d9fdf1952a81a92b16c` |
+| mbombrdc2 | `c3ce6cc2092d40e452a9ba63f0ef7211227536e6` | `fd6fc4a27bc4e0b0dd98d7d8a980f12f1611fc96` |
+| mbombrdjc2 | `7ccd1e457a06da11be765db64b13f05a9cbadea4` | `873e757bc24bb4b7f662936bdfa8136456d8406a` |
 
 ### 5. Add the sets to MAME
 

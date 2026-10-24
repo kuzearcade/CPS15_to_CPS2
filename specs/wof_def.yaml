@@ -20,6 +20,7 @@ eeprom:
     EE_BUF: {pc: 0x0108e6, disp: true}   # a5 displacement of the image buffer (-$7f24 QS1/DEF, -$7f54 Asia/Japan)
     EE_TRAP: {pc: 0x00091a}
 overrides:
+  0x05ddf0: {action: ignore, note: "write to $800180 (CPS1 sound latch) on entering service mode from attract: not mapped on QSound boards, a no-op"}
   0x00641a: {action: ignore, note: "immediate $800100 loaded into a data register: packed (x,y) parameter pair, not an address"}
   0x00646e: {action: ignore, note: "immediate $f00280 loaded into a data register: packed (x,y) parameter pair, not an address"}
   0x0064d2: {action: ignore, note: "immediate $800100 loaded into a data register: packed (x,y) parameter pair, not an address"}

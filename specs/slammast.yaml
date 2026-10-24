@@ -15,6 +15,7 @@ cpsb:
 indirect_stubs: true
 ee8: true
 overrides:
+  0x01eda2: {action: ignore, note: "input test: base $800000 of a table of input addresses ($8000xx and $F1C00x); the read at $1EDC8 is run-time mapped, so the base stays CPS1"}
   0x01e9da: {action: ignore, note: "write to $800180 (CPS1 sound latch): not mapped on QSound boards, a no-op"}
   0x01e9e2: {action: ignore, note: "write to $800188: not mapped on QSound boards, a no-op"}
   0x02ab82: {action: ignore, note: "subtracts the immediate $800000: 16.16 coordinate arithmetic"}
