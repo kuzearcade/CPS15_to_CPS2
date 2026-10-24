@@ -29,7 +29,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SCENARIOS = {
     "smoke": lambda info: (movies.smoke(info.players, info.buttons), 20000),
     "smoke1p": lambda info: (movies.smoke(1, info.buttons, seed=2), 20000),
-    "service": lambda info: (movies.service(), 6000),
+    "service": lambda info: (movies.service_late(info.codebase) if info.codebase in movies.CONFIG_ITEM
+                             else (movies.service(), 6000)),
     "inputtest": lambda info: movies.inputtest(info.codebase),
 }
 

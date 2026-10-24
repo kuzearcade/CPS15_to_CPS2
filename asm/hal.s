@@ -44,6 +44,9 @@ SH_VBLCNT       equ     SHIM+$1c50      ; vblank IRQs seen (hal_vbl)
 SH_IDLEVBL      equ     SHIM+$1c52      ; SH_VBLCNT at the previous idle-hook pass
 SH_IDLEHITS     equ     SHIM+$1c54      ; diagnostics: idle hook passes
 SH_PTCNT        equ     SHIM+$1c56      ; test builds: conversion counter
+SH_HITSVBL      equ     SHIM+$1c58      ; w: SH_IDLEHITS at the previous vblank
+SH_NOIDLE       equ     SHIM+$1c5a      ; b: vblanks in a row with no idle-hook pass (saturates)
+SH_SPRVBL       equ     SHIM+$1c5c      ; w: diagnostics: conversions done at a vblank (stalls)
 SH_FRAMES       equ     SHIM+$1c64      ; l: vblank IRQs (ee8 line clock)
 SH_XA           equ     SHIM+$1c68      ; l: hal_xlate address in/out
 SH_XIO          equ     SHIM+$1c6c      ; w: hal_xlate result: 1 = emulated I/O
@@ -108,6 +111,7 @@ SPR_PRI         equ     4<<13
 ; for a couple of frames (Punisher's oil drums and hallway plant, TstPunFix18/19;
 ; not in MAME or jtcps2; TstPunFix13, which swapped banks mid-frame, was fine).
 OBJ_PAD         equ     64
+NOIDLE_VBL      equ     4               ; vblanks without an idle pass before hal_vbl converts
 ; sprite palette pages: the one shown (SH_PALSA) and the one captured from the
 ; game's last upload, shown from the next vblank ($400 each, $400 aligned)
 SPRBUF0         equ     $902000
@@ -686,6 +690,33 @@ hal_vbl:
         move.w  SH_IOM+$30,SH_COIN1
         move.w  SH_IOM2+$04,SH_COIN2
         bsr     coin_out
+        ; idle-starved list: a game that has not reached its idle point for
+        ; NOIDLE_VBL vblanks (Punisher's test mode keeps a task runnable for good;
+        ; loading stalls) gets the pending list converted here, as the CPS1 latch
+        ; would show it. Normal frames never wait that long: the idle path stays free.
+        move.w  SH_IDLEHITS,d0
+        cmp.w   SH_HITSVBL,d0
+        beq     .noidle
+        move.w  d0,SH_HITSVBL
+        sf      SH_NOIDLE
+        bra     .fed
+.noidle addq.b  #1,SH_NOIDLE
+        bcc     .cnt
+        st      SH_NOIDLE
+.cnt    cmpi.b  #NOIDLE_VBL,SH_NOIDLE
+        blo     .fed
+        tst.b   SH_SPRPEND
+        beq     .fed
+        tst.b   SH_SPRBUSY              ; (an interrupted idle conversion: parked below)
+        bne     .fed
+        tst.b   SH_SUSP
+        bne     .fed
+        tst.b   SH_SPRREADY
+        bne     .fed
+        sf      SH_SPRPEND
+        addq.w  #1,SH_SPRVBL
+        bsr     spr_latch
+.fed
         ; interrupted the idle-time conversion: park it and give the game its
         ; frame first (the tasks this vblank wakes run before the conversion
         ; resumes at the next idle point; hal_idle)

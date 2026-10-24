@@ -94,6 +94,42 @@ def inputtest(codebase):
     return mv, f + 200
 
 
+CONFIG_ITEM = {"wof": 5, "wof_def": 5, "punisher": 4}     # SYSTEM CONFIGURATION in the test menu
+
+
+def service_late(codebase):
+    """WoF/Punisher test menu walk (these ignore the switch while booting and do not leave
+    items with button 2): enter items 1-10 in turn and leave each with 1P+2P Start; in
+    SYSTEM CONFIGURATION move every option right then left (restoring it), press FACTORY
+    SETTING and leave through its EXIT, each confirmed with 1P Start; finally select the
+    menu's EXIT. The configuration menu misses presses 30 frames apart. Returns (movie, frames)."""
+    mv = Movie()
+    mv.hold(["Service Mode"], 1500, 20)
+    f = 1800
+    for item in range(1, 11):
+        mv.tap(["P1 Down"], f, 4)                            # from EXIT (cursor's start) to 1, then on
+        mv.tap(["P1 Button 1"], f + 30, 4)
+        f += 150
+        if item == CONFIG_ITEM[codebase]:
+            for row in range(9):                             # every option: right, left (restored)
+                mv.tap(["P1 Right"], f, 4)
+                mv.tap(["P1 Left"], f + 60, 4)
+                mv.tap(["P1 Down"], f + 120, 4)
+                f += 180
+            for keys in (["P1 Button 1"], ["1 Player Start"],  # FACTORY SETTING, confirmed
+                         ["P1 Down"], ["P1 Button 1"], ["1 Player Start"]):  # EXIT, confirmed
+                mv.tap(keys, f, 4)
+                f += 60
+        else:
+            mv.hold(["1 Player Start", "2 Players Start"], f + (300 if item == 10 else 0), 6)
+            f += 300 if item == 10 else 0                    # RAM CHECK runs a while first
+        f += 90
+    if codebase != "punisher":                               # its MEMORY CHECK returns on EXIT
+        mv.tap(["P1 Down"], f, 4)
+    mv.tap(["P1 Button 1"], f + 30, 4)                       # EXIT: back to the game
+    return mv, f + 1500
+
+
 def service(end=6000):
     """Enter service mode and walk the menu with P1 controls."""
     mv = Movie()

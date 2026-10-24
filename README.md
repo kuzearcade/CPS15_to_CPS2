@@ -107,7 +107,7 @@ about 5 minutes. The runs use fixed input movies, so they are deterministic:
 |---|---|---|
 | `cov_smoke_<set>` | coin-up and random play with every player (`movies.smoke`, seed 1) | 20,000 |
 | `cov_smoke1p_<set>` | the same with player 1 only (seed 2) | 20,000 |
-| `cov_service_<set>` | service menu walk (`movies.service`) | 6,000 |
+| `cov_service_<set>` | service menu walk (`movies.service`; WoF, Punisher: every item and setting, `movies.service_late`) | 6,000 (WoF, Punisher: 7,920) |
 | `cov_inputtest_<set>` | service mode input test, every player's inputs (`movies.inputtest`) | 1,840 (WoF, Punisher: 3,040) |
 
 Each run also logs the game's I/O accesses to `work/jobs/cov_<run>_<set>/iotap.txt`.
@@ -156,24 +156,24 @@ done
 
 | Set | `out/mame/<set>/` | `out/darksoft/<set>/` |
 |---|---|---|
-| wofc2 | `b5e4a8ce6e6a0e5a4cf4013d39bd9b1beeb5aedd` | `f8c67b6767a3209a542d5101ca84f46d057bf2b3` |
-| wofr1c2 | `7a07dd8c20ccc2b5b8853420c873e2347e6083fd` | `fc5498b8faecaf1a56958c5e5663d3d01b6fadb1` |
-| wofuc2 | `dae99ab85dde22e6983293a0018730d033ab475a` | `8743d7dd4971b017e02fc4335ea2e67695e21545` |
-| wofac2 | `61b800abd340bfe68ee7e399ef7150f3686ac63c` | `9dd699d254724833e21b8172dabeb0cefdfe55c0` |
-| wofjc2 | `fce5db5efc901f08ca46e3f5d82ed72b3acfc61e` | `99f2da79dafc3c21dbef3b230b0f0386f9ce9e22` |
-| dinoc2 | `b2899b9eed6608834dd7266ddfa37360e30025e7` | `4754527b13958b6beeccd6840c0383c2e39efa21` |
-| dinouc2 | `c0fc669ebe159b5a60f3788057729d588adb5bdd` | `067d60356ce78e9f4e2c492367bd28c041cb1178` |
-| dinojc2 | `df419b6f1f388f11282a90060917463a7b75ba9f` | `0006f8115f8a98a42a7fd028d5f3ebcc1da87e30` |
-| dinoac2 | `b20c5522a18c01bb39ce0802b594c57e408d3590` | `94ac555945f7fe5bfda8e51b6fc3e0b899cb8cff` |
-| punisherc2 | `28626132ab9b5fb8e34dedf269a7074db953f7ff` | `277e910df83dd0c29af3ffbd61e56a32b63ff8e7` |
-| punisheruc2 | `fcf352a87ba0556193b5ff7c03e90f7da541e20f` | `82679303e5a244453788d05a34f2bed2c8dd475b` |
-| punisherhc2 | `b112f878b4740f8eaece3db492f8e5cfdb08959d` | `b48c477de78a4617ae22deb10067f6749b23abee` |
-| punisherjc2 | `c2f35a7275d48ee3d6d72883230a30fdfb64dfd3` | `858f5bfb1eab8bbdae4c36d5f9442814487b2d64` |
-| slammastc2 | `4ff88efe78c2f5d3df39461aa92dff2500697d01` | `34b3bdfc2c0494b6e94aa57b0d1c3111d34434ff` |
-| slammastuc2 | `68f7410ff4f4b5dbe4ecd74b85a4921fdfe0c1eb` | `7b158ec217f6388f68b67af276ebece0bbf6ed71` |
-| mbomberjc2 | `707e968b46a71d56dc2d7e2244a1b5504e87daea` | `eecf1d23ea440a1c8b928d9fdf1952a81a92b16c` |
-| mbombrdc2 | `c3ce6cc2092d40e452a9ba63f0ef7211227536e6` | `fd6fc4a27bc4e0b0dd98d7d8a980f12f1611fc96` |
-| mbombrdjc2 | `7ccd1e457a06da11be765db64b13f05a9cbadea4` | `873e757bc24bb4b7f662936bdfa8136456d8406a` |
+| wofc2 | `b60bca7cbc82219fa7b46bce5c85fce47db15814` | `b228dd4c7883f3f697ff5ed7253915ab9771e497` |
+| wofr1c2 | `9685da22013cf5604b05fa2d4b0a47abede09918` | `fc600e405b9e2ca069287c64eabf1a729a6f4127` |
+| wofuc2 | `f446db00e8137f0791ad394d16c80606dfcbab90` | `139519360ca53fccad017836e5117d5bf17368d0` |
+| wofac2 | `ef26d21ec73cd90f5f34128a30d270c9467bafce` | `e24d1f03b79fe3be46b80038d1b50bfe55a0a9ea` |
+| wofjc2 | `d9c637bc56424f70b28e563b66c579646cb7875f` | `3a1a0b66c399f0cc4c99fa24ca59a5f774c46da4` |
+| dinoc2 | `d645889ec0e1c1dd97110de64be04e6e490c1bbb` | `951426bc98c57d0b75f1a11418252bc7d71889a9` |
+| dinouc2 | `66b69ea3d8aef5a22712d8043e58bcc56a65f104` | `fcf42fd3e4123d49b96879305aaab220aa78d22b` |
+| dinojc2 | `fe89372efafefc9e53420181a0a0051584c46a21` | `ee33279a3fbc0bdd6c66b12bd4cafad3916d4079` |
+| dinoac2 | `8ed5f4dccee9c3e3e8cd21187f95321350e84681` | `733abaef1e1bcac011550a24f82344c0a5e6fdcf` |
+| punisherc2 | `6369287d84ba9880da1a1169962020322e5eedca` | `7afa8d2eda8c9dffc0da40a9928b0d45b4f147eb` |
+| punisheruc2 | `22db3e95ddb4740b2587be0a8ac048876f9ceaa2` | `c6d457b112da9019a10917f3c18e37d7d51453ad` |
+| punisherhc2 | `cd96ee8ead0bd8094d4c119bc115c2c7bcc9ba07` | `66e88e23a701c2164a98053921bf126acb563f34` |
+| punisherjc2 | `6613e0e8b43c5ceda6a0cdc4c8af91e39d44e8d6` | `9277b2bf67eca0c3c4986de5282743c012814220` |
+| slammastc2 | `eb5112ac8956c23f3ef505819f7fa442f938f1cf` | `279375eebcad25726ac2c7a3a3669d70bbe38848` |
+| slammastuc2 | `d613d359f131f98ff1a095ae2bcbbf5c5893fbfe` | `0c8aa564f1525cd41a1169d3df7f93393aa3c620` |
+| mbomberjc2 | `74aa4306cc5dce80eaf1107533e71ab7c8dc5ea6` | `3d00e15fb5f6ca4b1bf86bfe80b9f1b2950686ba` |
+| mbombrdc2 | `df08a30daa46b02aed656660898267fcc746bb58` | `6d0f3cb03376d36ea5d784f278dc34524f4619cf` |
+| mbombrdjc2 | `c047f069cee00c587ffdd0ed451ae715a568efa3` | `343509169fa46d03d33600ac0eee92d0f2ee2819` |
 
 ### 5. Add the sets to MAME
 

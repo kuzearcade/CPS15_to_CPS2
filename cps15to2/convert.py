@@ -606,6 +606,12 @@ def classify(setname, rows, spec, ref_map, rom=b""):
                 sites.append(patcher.Site(pc, "ignore", note="CPS-A register, same on CPS2"))
         elif cat in ("INPUT", "IN23", "COINCTRL", "COINCTRL2", "CPSB"):
             sites.append(patcher.Site(pc, "io", addr=a))
+        elif cat in ("QRAM2", "EEPROM", "IO_OTHER") and re.match(r"^(lea|pea)\b", r["insn"]):
+            # address load: the accesses through it are run-time mapped (indirect stubs).
+            # An operand stub would hand out SH_TEMP, which every stub (vblank IRQ's too)
+            # rewrites: Slam Masters keeps checksum loop counts at $F1F900-4 that way.
+            sites.append(patcher.Site(pc, "ignore", note=f"address load of {a:06x} ({cat}): kept, "
+                                                         "accesses through it are run-time mapped"))
         elif cat in ("QRAM2", "EEPROM", "IO_OTHER"):
             sites.append(patcher.Site(pc, "stub", addr=a))
         elif cat == "CPS2OBJ":
