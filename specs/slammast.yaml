@@ -59,6 +59,7 @@ layer_shadow: 0xff8d72
 # priority masks 1-3 the vblank IRQ copies to the CPS-B ($d74-$d78(a5) -> masks 1-3 at $666-$676)
 mask_shadow: 0xff8d74
 next_regs: true
+next_regs3: true                # ovl_next_regs3: same for scroll3 (overlays over scroll3)
 idle_hook: {pc: 0x000a38, kind: jmp, label: cb_idle, resume: 0x000a3e}
 patches:
   # Work RAM $FFFFF0-$FFFFFF holds the CPS2 object registers on phoenix boards: real

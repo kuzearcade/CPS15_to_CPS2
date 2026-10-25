@@ -80,3 +80,14 @@ ovl_next_regs:
         move.w  #$300,d2
         sub.w   $ff8d3c,d2
         rts
+
+; Same for scroll3: base = $2130(a5) -> $800106 ($6A6), x = $d40(a5) + $ffc0
+; -> $800114, y = $700 - $d44(a5) -> $800116 (the ratings screen hides its
+; scrolling rows behind masked scroll3 pens).
+ovl_next_regs3:
+        move.w  $ffa130,d0
+        move.w  $ff8d40,d1
+        addi.w  #$ffc0,d1
+        move.w  #$700,d2
+        sub.w   $ff8d44,d2
+        rts

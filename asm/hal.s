@@ -555,6 +555,10 @@ hal_init:
         clr.l   SH_LAYERPEND            ; SH_LAYERPEND, SH_VCHW
         clr.l   SH_CONVBUSY             ; SH_CONVBUSY, SH_PALDUE, SH_GPVALID
         move.l  #SPRBUF0,SH_PALSA
+        lea     OVL_FLIPWS,a0           ; lists in the banks: no borrowed palettes
+        moveq   #$74/4-1,d0
+.clro   clr.l   (a0)+
+        dbra    d0,.clro
         clr.l   SH_PALT
         clr.w   SH_SUSP                 ; SH_SUSP, SH_SWITCH
         bsr     init_mirrors
@@ -663,9 +667,8 @@ hal_vbl:
         beq     .nofl
         sf      SH_SPRREADY
         bsr     spr_flip
-        move.l  OVL_PALUSE,d0           ; borrowed sprite palettes change with the list
-        or.l    OVL_PALUSE_P,d0
-        or.l    OVL_DIRTY,d0
+        bsr     ovl_flip                ; borrowed sprite palettes change with the lists
+        tst.l   d0
         beq     .nofl
         st      SH_PALDUE
 .nofl   bsr     vid_apply
@@ -679,8 +682,7 @@ hal_vbl:
         sf      SH_GPVALID
         clr.l   OVL_DIRTY               ; as the game uploaded it
         st      SH_PALNEW
-        move.l  OVL_PALUSE,d0           ; borrowed palettes to put in
-        or.l    OVL_PALUSE_P,d0
+        move.l  OVL_USE_E,d0            ; borrowed palettes to put in
         beq     .nopal
         st      SH_PALDUE
 .nopal  addq.w  #1,SH_VBLCNT

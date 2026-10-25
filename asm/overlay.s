@@ -61,6 +61,17 @@ OVL_MARK        equ     OVL_WS+$1500    ; 18 longs: single sprites' cells, one c
 OVL_COLMASK     equ     OVL_WS+$1548    ; long: visible screen-cell columns
 OVL_NROWS       equ     OVL_WS+$154c    ; word: last visible screen-cell row
 OVL_NCOLS       equ     OVL_WS+$154e    ; word: last visible screen-cell column
+OVL_MAP_F       equ     OVL_WS+$1550    ; 32 bytes: OVL_PALMAP of the list flipped in last
+OVL_MAP_D       equ     OVL_WS+$1570    ; 32 bytes: same, one flip before
+OVL_MAP_E       equ     OVL_WS+$1590    ; 32 bytes: same, two flips before: the list on
+                                        ; screen with the palettes uploaded now (ovl_flip)
+OVL_USE_F       equ     OVL_WS+$15b0    ; long: OVL_PALUSE of OVL_MAP_F
+OVL_USE_D       equ     OVL_WS+$15b4    ; long: OVL_PALUSE of OVL_MAP_D
+OVL_USE_E       equ     OVL_WS+$15b8    ; long: OVL_PALUSE of OVL_MAP_E
+OVL_PG_F        equ     OVL_WS+$15bc    ; word: OVL_PALPG of OVL_MAP_F
+OVL_PG_D        equ     OVL_WS+$15be    ; word: OVL_PALPG of OVL_MAP_D
+OVL_PG_E        equ     OVL_WS+$15c0    ; word: OVL_PALPG of OVL_MAP_E
+OVL_FLIPWS      equ     OVL_MAP_F       ; $74 bytes cleared by hal_init
 OVL_LC2         equ     OVL_WS+$1600    ; 32 x (key, result): ovl_lookup results (scroll2)
 OVL_LC3         equ     OVL_WS+$1700    ; 32 x (key, result): ovl_lookup3 results (scroll3)
                                         ; (key = code << 16 | mask, never 0: mask is not)
@@ -915,8 +926,7 @@ ovl_palette:
 ovl_paldma:
         clr.w   OVL_NOUP
         movem.l d0-d7/a0-a6,-(sp)
-        move.l  OVL_PALUSE,d6
-        or.l    OVL_PALUSE_P,d6
+        move.l  OVL_USE_E,d6
         ifd     PAIRTEST
         moveq   #-1,d6
         endc
@@ -942,19 +952,16 @@ ovl_paldma:
         addi.l  #$900000,d0
         movea.l d0,a5
         ; substitute borrowed slots: slot s <- scroll2 palette p (map[p] = s+1),
-        ; with the map of the list on screen with this page: the current one,
-        ; unless hal_sprites is building it (then the previous list stays). The
-        ; other list's map is not applied: its slots may be game slots of this one.
+        ; with the map of the list on screen with this page: the one flipped in
+        ; two flips ago (a list flipped in at a vblank is latched at the next one
+        ; and shown with the palettes of the frame after; measured in MAME with
+        ; overlays that change from one list to the next). The other lists' maps
+        ; are not applied: their slots may be game slots of this one.
         moveq   #0,d7
-        lea     OVL_PALMAP,a0
-        move.w  OVL_PALPG,d0
-        move.l  OVL_PALUSE,d1
-        tst.b   SH_CONVBUSY
-        beq     .cur
-        lea     OVL_PALMAP_P,a0
-        move.w  OVL_PALPG_P,d0
-        move.l  OVL_PALUSE_P,d1
-.cur    move.l  d1,-(sp)
+        lea     OVL_MAP_E,a0
+        move.w  OVL_PG_E,d0
+        move.l  OVL_USE_E,d1
+        move.l  d1,-(sp)
         bsr     ovl_subst
         ifd     PAIRTEST                ; slot 31: red after an even conversion, blue after odd
         move.w  #$ff00,d0
@@ -969,6 +976,36 @@ ovl_paldma:
         endc
         move.l  (sp)+,OVL_DIRTY         ; slots now holding scroll2 colours
 .done   movem.l (sp)+,d0-d7/a0-a6
+        rts
+
+; the hidden bank has just been flipped in (hal_vbl): the maps of the lists in the
+; banks move on. -> d0.l = slots the next upload must prepare (borrowed or dirty)
+ovl_flip:
+        movem.l d1/a0-a1,-(sp)
+        lea     OVL_MAP_D,a0
+        lea     OVL_MAP_E,a1
+        moveq   #7,d1
+.e      move.l  (a0)+,(a1)+
+        dbra    d1,.e
+        lea     OVL_MAP_F,a0
+        lea     OVL_MAP_D,a1
+        moveq   #7,d1
+.d      move.l  (a0)+,(a1)+
+        dbra    d1,.d
+        lea     OVL_PALMAP,a0
+        lea     OVL_MAP_F,a1
+        moveq   #7,d1
+.f      move.l  (a0)+,(a1)+
+        dbra    d1,.f
+        move.l  OVL_USE_D,OVL_USE_E
+        move.l  OVL_USE_F,OVL_USE_D
+        move.l  OVL_PALUSE,OVL_USE_F
+        move.w  OVL_PG_D,OVL_PG_E
+        move.w  OVL_PG_F,OVL_PG_D
+        move.w  OVL_PALPG,OVL_PG_F
+        move.l  OVL_USE_E,d0
+        or.l    OVL_DIRTY,d0
+        movem.l (sp)+,d1/a0-a1
         rts
 
 ; game colours of the slots in d0.l back into the shown sprite page from

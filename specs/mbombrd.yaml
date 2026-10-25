@@ -36,6 +36,7 @@ layer_shadow: 0xff8d58
 # priority masks 1-3 the vblank IRQ copies to the CPS-B ($d5a-$d5e(a5) -> masks 1-3 at $666-$676)
 mask_shadow: 0xff8d5a
 next_regs: true
+next_regs3: true                # ovl_next_regs3: same for scroll3 (overlays over scroll3)
 idle_hook: {pc: 0x00099c, kind: jmp, label: cb_idle, resume: 0x0009a2}
 # code checksums (tools/patchreads.py): summing loops whose regions contain patched
 # bytes read unpatched copies (sums verified against the game's expected values)

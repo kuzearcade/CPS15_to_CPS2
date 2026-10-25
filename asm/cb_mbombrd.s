@@ -80,3 +80,13 @@ ovl_next_regs:
         move.w  #$300,d2
         sub.w   $ff8d26,d2
         rts
+
+; Same for scroll3: base = $20c4(a5) -> $800106 ($6A6), x = $d2a(a5) + $ffc0
+; -> $800114, y = $700 - $d2e(a5) -> $800116.
+ovl_next_regs3:
+        move.w  $ffa0c4,d0
+        move.w  $ff8d2a,d1
+        addi.w  #$ffc0,d1
+        move.w  #$700,d2
+        sub.w   $ff8d2e,d2
+        rts
