@@ -111,6 +111,8 @@ QUAD3   macro
         bhi     .qfull
         move.w  d0,(a1)+
         move.w  a6,(a1)+
+        andi.w  #$3ff,-2(a1)            ; y wraps at 10 bits: above the top it stays off
+                                        ; screen; negative it would end the list
         add.w   d4,d2
         move.w  d2,(a1)+
         move.w  a5,(a1)+
@@ -767,7 +769,7 @@ ovl_emit3:
         addi.w  #64+SPR_PRI,d0
         sub.w   OVL_PHX,d0
         move.w  d7,d2                   ; y = 16 + 32r - phy (+16 for qy; above line 16
-        lsl.w   #5,d2                   ; when negative: off screen either way)
+        lsl.w   #5,d2                   ; when negative: QUAD3 wraps it)
         addi.w  #16,d2
         sub.w   OVL_PHY,d2
         movea.w d2,a6

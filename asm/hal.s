@@ -642,10 +642,10 @@ hal_aline:
 ; anywhere from line 10 on showed a frame later than in MAME, a flip at the start
 ; of vblank as in MAME). Like CPS2 games, the HAL therefore flips banks here and
 ; holds the positions written during a frame until this vblank: scrolls, row scroll
-; (offset and table), layer order, the sprite palette page (pal_trigger). Tilemap
-; contents cannot be held, so what belongs with them takes effect at once: tilemap
-; bases, layer enables, the tilemap palette pages (games switch layers off or swap
-; tilemap buffers while writing new contents: Punisher's attract story).
+; (offset and table), tilemap bases, layer order, layers switched on, the sprite
+; palette page (pal_trigger). Tilemap contents cannot be held, so what belongs with
+; them takes effect at once: layers switched off, the tilemap palette pages (games
+; switch layers off while writing new contents: Punisher's attract story).
 hal_vbl_jsr:                            ; entry hook is a jsr: WoF $24404 rejects bra/nop/jmp
         addq.l  #4,sp                   ; in the handler's code (the game's own movem
                                         ; overwrites those 4 bytes at once)
@@ -1155,7 +1155,7 @@ wr_cpsa_off:                            ; direct entry: d1.w = offset, d2 = data
 
 ; positions written during the last frame, at the vblank (hal_vbl): CPS-A
 ; tilemap bases, scrolls, row scroll and video control from the image (enables stay
-; as written), layer order. A base goes with its scroll: Slam Masters flips
+; as written), layer control. A base goes with its scroll: Slam Masters flips
 ; scroll2/3 between copies of the floor, base and scroll together, and a base
 ; applied a frame before its scroll drew the floor from the wrong rows. Row
 ; scroll: the table is copied as it is now (the 256 entries from the offset) and
@@ -1200,11 +1200,7 @@ vid_apply:
         move.w  $08(a0),$08(a1)         ; other base and row offset as written
         CPSA_GAP
         move.w  $20(a0),$20(a1)
-.lay    move.w  SH_LAYERPEND,d0         ; layer order as written, enables as in the hardware
-        andi.w  #~LAYER_ENS,d0
-        move.w  SH_LAYERHW,d1
-        andi.w  #LAYER_ENS,d1
-        or.w    d1,d0
+.lay    move.w  SH_LAYERPEND,d0         ; layer control as written last
         move.w  d0,SH_LAYERHW
         move.w  d0,CPS2_LAYER
         rts
@@ -1407,12 +1403,11 @@ cpsb_layer:
         andi.w  #LAYER_EN3,d1
         beq     .ew
         ori.w   #$0008,d4
-.ew     move.w  d4,SH_LAYERPEND         ; order: at the next vblank (vid_apply)
-        move.w  SH_LAYERHW,d1           ; enables: now
-        andi.w  #~LAYER_ENS,d1
-        andi.w  #LAYER_ENS,d4
-        or.w    d4,d1
-        move.w  d1,SH_LAYERHW
+.ew     move.w  d4,SH_LAYERPEND         ; order and enables: at the next vblank (vid_apply)
+        move.w  d4,d1                   ; a layer switched off: now (contents written
+        ori.w   #~LAYER_ENS,d1          ; behind it stay hidden); switched on: with its
+        and.w   SH_LAYERHW,d1           ; base (Punisher's continue screen: the old stage
+        move.w  d1,SH_LAYERHW           ; with the new palette for a frame)
         move.w  d1,CPS2_LAYER
         rts
 
