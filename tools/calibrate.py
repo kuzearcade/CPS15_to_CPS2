@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from cps15to2 import convert  # noqa: E402
 from cps15to2.sets import SETS  # noqa: E402
+from tests.runner import mame_env  # noqa: E402
 
 CAL = ROOT / "specs/calibration.yaml"
 MAME = Path.home() / "mame/mame"
@@ -41,7 +42,7 @@ def run(setname, bps, frames=700):
         subprocess.run([str(MAME), setname, "-rompath", f"{ROOT}/out/mame;{ROOT}/mame_roms", "-homepath",
                         str(Path.home() / "mame"), "-video", "none", "-sound", "none", "-nothrottle",
                         "-skip_gameinfo", "-debug", "-debugger", "none", "-seconds_to_run", "120", "-log",
-                        "-autoboot_script", str(Path(td) / "c.lua")], cwd=td,
+                        "-autoboot_script", str(Path(td) / "c.lua")], cwd=td, env=mame_env(),
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
         return (Path(td) / "error.log").read_text(errors="replace").splitlines()
 
@@ -75,7 +76,7 @@ def run_traps(setname, entry, trap):
         subprocess.run([str(MAME), setname, "-rompath", f"{ROOT}/out/mame;{ROOT}/mame_roms", "-homepath",
                         str(Path.home() / "mame"), "-video", "none", "-sound", "none", "-nothrottle",
                         "-skip_gameinfo", "-debug", "-debugger", "none", "-seconds_to_run", "120", "-log",
-                        "-autoboot_script", str(Path(td) / "c.lua")], cwd=td,
+                        "-autoboot_script", str(Path(td) / "c.lua")], cwd=td, env=mame_env(),
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
         return (Path(td) / "error.log").read_text(errors="replace").splitlines()
 

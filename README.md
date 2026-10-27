@@ -192,7 +192,10 @@ and parent files from `mame_roms/`. Quote it, since it contains `;`.
 ## Testing
 
 Tests run headless MAME instances, at most 14 at a time. Inputs come only from
-generated movies and pokes; host input devices are disabled.
+generated movies and pokes; host input devices are disabled. The scripts set
+`SDL_VIDEODRIVER=dummy` unless it is already set, so they also work over SSH
+or without a desktop session (MAME otherwise exits with code 255 when SDL finds
+no video driver). A failed run's MAME output is in `work/jobs/<id>/stdout.txt`.
 
 ```sh
 # lock-step: original vs. conversion, compares RAM and screen hashes every frame

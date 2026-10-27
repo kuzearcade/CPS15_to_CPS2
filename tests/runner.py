@@ -19,13 +19,22 @@ LUA = ROOT / "mame/lua"
 MAX_PAR = 14
 
 
+def mame_env():
+    """Environment for a MAME run. MAME's SDL build starts SDL video even with
+    -video none and exits with 255 when no video driver works (SSH, no desktop
+    session); SDL's dummy driver always works and nothing is displayed anyway."""
+    env = dict(os.environ)
+    env.setdefault("SDL_VIDEODRIVER", "dummy")
+    return env
+
+
 def run_job(job):
     jd = ROOT / "work/jobs" / job["id"]
     jd.mkdir(parents=True, exist_ok=True)
     import shutil
     if not job.get("keep_nvram"):
         shutil.rmtree(jd / "nvram", ignore_errors=True)   # every run starts from a blank EEPROM
-    env = dict(os.environ)
+    env = mame_env()
     env["H_LUA"] = str(LUA)
     env["H_SNAPDIR"] = str(jd)
     for k, v in job.get("env", {}).items():

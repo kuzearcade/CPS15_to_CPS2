@@ -82,6 +82,10 @@ def main():
             shutil.copyfile(jd / "iotap.txt", ref)
     for r in failed:
         print(f"FAILED {r['id']}: {r['rc']}")
+        log = ROOT / "work/jobs" / r["id"] / "stdout.txt"
+        if log.exists():     # MAME's own error message, e.g. a missing ROM or SDL failure
+            for line in log.read_text(errors="replace").splitlines()[-10:]:
+                print(f"  | {line}")
     return 1 if failed else 0
 
 
