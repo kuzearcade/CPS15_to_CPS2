@@ -72,6 +72,17 @@ OVL_PG_F        equ     OVL_WS+$15bc    ; word: OVL_PALPG of OVL_MAP_F
 OVL_PG_D        equ     OVL_WS+$15be    ; word: OVL_PALPG of OVL_MAP_D
 OVL_PG_E        equ     OVL_WS+$15c0    ; word: OVL_PALPG of OVL_MAP_E
 OVL_FLIPWS      equ     OVL_MAP_F       ; $74 bytes cleared by hal_init
+OVL_CHKFL       equ     $903800         ; word: SH_FLIPS when the records below were made
+OVL_STALE       equ     $903802         ; word: diagnostics: stale overlay cells found by ovl_recheck
+OVL_CHKN        equ     $903804         ; long: next free record
+OVL_CHKA        equ     $903808         ; long: list position of the cell's first entry
+OVL_CHKX        equ     $90380c         ; word: the cell's x (quadrant 0, with priority)
+OVL_CHKY        equ     $90380e         ; word: the cell's y (quadrant 0) & $3ff | slot << 11
+OVL_CHK         equ     $903810         ; records of the list converted last, 12 bytes each:
+                                        ; w tile index ((address - $900000) / 4), l tile as
+                                        ; used, w entry position in the bank | entries - 1,
+                                        ; w x, w y
+OVL_CHKEND      equ     $904000         ; (the games use gfx RAM from $904000 on)
 OVL_LC2         equ     OVL_WS+$1600    ; 32 x (key, result): ovl_lookup results (scroll2)
 OVL_LC3         equ     OVL_WS+$1700    ; 32 x (key, result): ovl_lookup3 results (scroll3)
                                         ; (key = code << 16 | mask, never 0: mask is not)
@@ -110,17 +121,52 @@ QUAD3   macro
         cmpa.l  a3,a1
         bhi     .qfull
         move.w  d0,(a1)+
-        move.w  a6,(a1)+
-        andi.w  #$3ff,-2(a1)            ; y wraps at 10 bits: above the top it stays off
-                                        ; screen; negative it would end the list
         add.w   d4,d2
+        swap    d2
+        move.w  a6,d2
+        andi.w  #$3ff,d2                ; y wraps at 10 bits: above the top it stays off
+        move.w  d2,(a1)+                ; screen; negative it would end the list (in a
+        swap    d2                      ; register: the shown bank reads back other RAM)
         move.w  d2,(a1)+
         move.w  a5,(a1)+
 .q\@
         endm
 
+; record the cell just emitted for ovl_recheck: entries from OVL_CHKA to a1, tile
+; column shift \1 (6 scroll2, 5 scroll3), a4 = the row's tiles, d5 = column.
+; Uses d0-d2/a0.
+OVLREC  macro
+        move.l  a1,d0
+        sub.l   OVL_CHKA,d0             ; bytes written for this cell
+        beq.s   .r\@
+        movea.l OVL_CHKN,a0
+        cmpa.l  #OVL_CHKEND-12,a0
+        bhi.s   .r\@                    ; table full: the cell stays unchecked
+        move.w  OVL_TX0,d1
+        add.w   d5,d1
+        andi.w  #63,d1
+        lsl.w   #\1,d1
+        move.l  (a4,d1.w),d2            ; the tile as used
+        ext.l   d1
+        add.l   a4,d1
+        subi.l  #$900000,d1
+        lsr.l   #2,d1
+        move.w  d1,(a0)+
+        move.l  d2,(a0)+
+        lsr.w   #3,d0
+        subq.w  #1,d0
+        move.l  OVL_CHKA,d1
+        subi.l  #CPS2_OBJRAM,d1
+        or.w    d0,d1
+        move.w  d1,(a0)+
+        move.l  OVL_CHKX,(a0)+          ; x, y
+        move.l  a0,OVL_CHKN
+.r\@
+        endm
+
 ; ---- per-frame preparation (called at the start of hal_sprites) -------------
 ovl_prepare:
+        bsr     ovl_recheck
         movem.l d0-d2/a0-a1,-(sp)
         ; keep the previous conversion's palette map: its list stays on screen
         ; until this conversion is flipped in, so uploads carry both maps
@@ -668,22 +714,30 @@ ovl_emit:
         bmi     .nopal
         cmpa.l  a3,a1
         bhi     .full
+        move.l  a1,OVL_CHKA
         move.w  d5,d0                   ; x = 64 + 16c - phx
         lsl.w   #4,d0
         addi.w  #64,d0
         sub.w   OVL_PHX,d0
         ori.w   #SPR_PRI,d0
         move.w  d0,(a1)+
+        move.w  d0,OVL_CHKX
         move.w  d7,d0                   ; y = 16 + 16r - phy
         lsl.w   #4,d0
         addi.w  #16,d0
         sub.w   OVL_PHY,d0
         move.w  d0,(a1)+
+        move.w  d1,d2                   ; record: y, borrowed slot
+        ror.w   #5,d2
+        andi.w  #$3ff,d0
+        or.w    d2,d0
+        move.w  d0,OVL_CHKY
         move.w  d4,(a1)+
         andi.w  #$0060,d3               ; tile flips + borrowed palette
         or.w    d1,d3
         move.w  d3,(a1)+
         addq.w  #1,SH_OVL_COUNT
+        OVLREC  6
 .ncol   tst.l   d6
         bne     .col
 .nrow   addq.w  #1,d7
@@ -773,6 +827,15 @@ ovl_emit3:
         addi.w  #16,d2
         sub.w   OVL_PHY,d2
         movea.w d2,a6
+        move.l  a1,OVL_CHKA
+        move.w  d0,OVL_CHKX
+        move.w  a5,d2                   ; record: y, borrowed slot
+        ror.w   #5,d2
+        andi.w  #$f800,d2
+        move.w  d2,OVL_CHKY
+        move.w  a6,d2
+        andi.w  #$3ff,d2
+        or.w    d2,OVL_CHKY
         QUAD3   0
         addi.w  #16,d0
         QUAD3   1
@@ -780,6 +843,7 @@ ovl_emit3:
         QUAD3   3
         subi.w  #16,d0
         QUAD3   2
+        OVLREC  5
 .ncol   tst.l   d6
         bne     .col
 .nrow   addq.w  #1,d7
@@ -791,6 +855,116 @@ ovl_emit3:
 .nopal  addq.w  #1,SH_OVL_NOPAL
         bra     .ncol
 .qfull  addq.w  #1,SH_SPROVF
+        rts
+
+; The list converted last was flipped in at the last vblank; MAME takes the shown
+; bank at the next one (screen_vblank latch), so until then its overlays can still
+; follow the tilemap. A cell whose tile the game has rewritten since (Punisher's
+; pillars and pipes breaking) would show the old tile's pens for a frame: its
+; entries take the new tile's variant (the previous conversion's layer, masks and
+; lookups are still in place: ovl_prepare comes after this), or move off screen when
+; the new tile needs another palette, has no masked pens or needs more entries.
+; Start of each conversion; keeps all registers.
+ovl_recheck:
+        movem.l d0-d7/a0-a6,-(sp)
+        movea.l OVL_CHKN,a2
+        move.l  #OVL_CHK,OVL_CHKN
+        move.w  SH_FLIPS,d0
+        move.w  OVL_CHKFL,d1
+        move.w  d0,OVL_CHKFL            ; for the records of this conversion
+        subq.w  #1,d0
+        cmp.w   d1,d0
+        bne     .x                      ; not flipped in: this conversion replaces it
+        lea     OVL_CHK,a4
+.l      cmpa.l  a2,a4
+        bhs     .x
+        moveq   #0,d0
+        move.w  (a4),d0
+        lsl.l   #2,d0
+        addi.l  #$900000,d0
+        movea.l d0,a0
+        move.l  (a0),d5                 ; the tile now
+        cmp.l   2(a4),d5
+        beq     .next
+        addq.w  #1,OVL_STALE
+        moveq   #0,d0                   ; the cell's entries in the shown bank:
+        move.w  6(a4),d0                ; a1 = first, a3 = last, d7 = count - 1
+        moveq   #7,d7
+        and.w   d0,d7
+        andi.w  #$fff8,d0
+        addi.l  #CPS2_OBJRAM-$8000,d0
+        movea.l d0,a1
+        move.l  a1,d6
+        move.w  d7,d0
+        lsl.w   #3,d0
+        lea     (a1,d0.w),a3
+        move.w  d5,d3                   ; new attr
+        move.w  4(a4),d0                ; old attr: same palette, else no slot for it
+        eor.w   d3,d0
+        andi.w  #$1f,d0
+        bne     .hide
+        move.w  d3,d1                   ; mask of the new tile's group
+        lsr.w   #6,d1
+        andi.w  #6,d1
+        lea     OVL_MASKS,a0
+        move.w  (a0,d1.w),d1
+        beq     .hide
+        move.l  d5,d2
+        swap    d2                      ; new code
+        move.w  10(a4),d0               ; borrowed slot as before, the new tile's flips
+        rol.w   #5,d0                   ; (from the record: the shown bank reads back
+        andi.w  #$1f,d0                 ; other RAM)
+        move.w  d3,d4
+        andi.w  #$0060,d4
+        or.w    d0,d4
+        movea.w d4,a5
+        cmpi.w  #3,OVL_LAYER
+        beq.s   .s3
+        LOOKUPC OVL_LC2,ovl_lookup      ; scroll2: one entry
+        tst.l   d0
+        ble     .hide
+        move.w  8(a4),(a1)
+        move.w  10(a4),d1
+        andi.w  #$3ff,d1
+        move.w  d1,2(a1)
+        move.w  d0,4(a1)
+        move.w  a5,6(a1)
+        bra     .next
+.s3     andi.w  #$3fff,d2
+        LOOKUPC OVL_LC3,ovl_lookup3
+        tst.l   d0
+        ble     .hide
+        move.l  d0,d4
+        movea.l d6,a0                   ; all off screen, then the variant's quadrants
+        move.w  d7,d0
+.h3     move.w  #$300,2(a0)
+        addq.l  #8,a0
+        dbra    d0,.h3
+        move.w  d3,d1
+        lsr.w   #5,d1
+        andi.w  #3,d1                   ; flips
+        move.l  d4,d3
+        swap    d3                      ; present quadrants
+        move.w  8(a4),d0
+        move.w  10(a4),d2
+        andi.w  #$3ff,d2
+        movea.w d2,a6
+        QUAD3   0
+        addi.w  #16,d0
+        QUAD3   1
+        lea     16(a6),a6
+        QUAD3   3
+        subi.w  #16,d0
+        QUAD3   2
+        bra.s   .next
+.qfull                                  ; more quadrants than entries
+.hide   movea.l d6,a0
+.h      move.w  #$300,2(a0)             ; y off screen
+        addq.l  #8,a0
+        dbra    d7,.h
+.next   lea     12(a4),a4
+        bra     .l
+.x      movem.l (sp)+,d0-d7/a0-a6
         rts
 
 ; scroll3 table lookup: d2 = tile code, d1 = mask -> d0.l = quadrants << 16 | first

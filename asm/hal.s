@@ -559,6 +559,9 @@ hal_init:
         moveq   #$74/4-1,d0
 .clro   clr.l   (a0)+
         dbra    d0,.clro
+        move.l  #OVL_CHK,OVL_CHKN       ; no overlay records to check (ovl_recheck)
+        move.w  SH_FLIPS,OVL_CHKFL
+        clr.w   OVL_STALE
         clr.l   SH_PALT
         clr.w   SH_SUSP                 ; SH_SUSP, SH_SWITCH
         bsr     init_mirrors
