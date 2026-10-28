@@ -1069,10 +1069,11 @@ def convert(setname, outdir=ROOT / "out", romdir=ROOT / "mame_roms", workdir=ROO
     (wd / "tramps.s").write_text(tramps_asm)
     extra.append("tramps.s")
     # pen-priority-mask overlays (asm/overlay.s; CPS2 has no pen masks): variants for every (tile, mask) the code base
-    # can show. Static superset: every tile of the 1K-tile blocks scroll2 is seen using
-    # (any run of any set of the code base: analysis/s2tiles_*) x every mask value the
-    # code base writes, plus every recorded combination.
-    combos, s2codes, s3codes, s3masks, masks = [], set(), set(), set(), set()
+    # can show. Every recorded combination, every recorded scroll2 tile (analysis/s2tiles_*,
+    # tiles_*) x every mask value the code base writes, and as room allows the other tiles
+    # of the 1K-tile blocks scroll2 is seen using x the sampled mask values.
+    combos, s2codes, s3codes, s3masks, masks, wmasks = [], set(), set(), set(), set(), set()
+    wfreq = collections.Counter()         # frames each mask value was in effect
     related = set(spec.get("overlay_data_sets") or [])   # same game and graphics, other code base
     for other, oinfo in SETS.items():
         if oinfo.codebase != info.codebase and other not in related:
@@ -1084,6 +1085,15 @@ def convert(setname, outdir=ROOT / "out", romdir=ROOT / "mame_roms", workdir=ROO
         if f.exists():
             for k in json.loads(f.read_text())["masks"]:
                 masks |= {int(v) for v in k.strip("()").split(",")}
+        # every value the set wrote to a mask register and the frames it was in effect
+        # (tools/maskvals.py): "group value frames"
+        f = ROOT / f"analysis/maskvals_{other}.txt"
+        if f.exists():
+            for line in f.read_text().split("\n"):
+                if line:
+                    _g, v, n = line.split()
+                    wmasks.add(int(v, 16))
+                    wfreq[int(v, 16)] += int(n)
         for f in glob.glob(str(ROOT / f"analysis/s2tiles_{other}_*.txt")):
             s2codes |= {int(x) for x in Path(f).read_text().split()}
         # playthrough recordings (mame/lua/tilerec.lua): "layer code group mask" for
@@ -1096,6 +1106,7 @@ def convert(setname, outdir=ROOT / "out", romdir=ROOT / "mame_roms", workdir=ROO
                         combos.append((layer, code, mk))
                     if layer == 2:
                         s2codes.add(code)
+                        wmasks.add(mk)
                     elif layer == 3:
                         s3codes.add(code)
                         s3masks.add(mk)
@@ -1104,7 +1115,15 @@ def convert(setname, outdir=ROOT / "out", romdir=ROOT / "mame_roms", workdir=ROO
     codes = s2codes | {t for b, n in blocks.items() if n >= 4 for t in range(b << 10, (b + 1) << 10)}
     first = (0xC000 if info.mapper == "MB63B" else 0x8000)
     tiles = overlay.decode_all(regions["gfx"])
-    combos += overlay.static_combos(tiles, sorted(codes), sorted(masks))
+    # the recorded tiles take every mask value written (wmasks): a tile can be shown in
+    # a group other than the one recorded, and the sampled masks miss values (Dino's
+    # jungle edges). The rest of the blocks only fill the room left (fill below), with
+    # the mask values in effect longest first.
+    wmasks.discard(0)
+    combos += overlay.static_combos(tiles, sorted(s2codes), sorted(masks | wmasks))
+    fill = []
+    for mk in sorted(masks | wmasks, key=lambda m: (-wfreq[m], m)):
+        fill += overlay.static_combos(tiles, sorted(codes - s2codes), [mk])
     # scroll3 (32x32): every recorded tile x every mask value recorded over scroll3
     g32 = refrender.Gfx(regions["gfx"])
     limit = {"MB63B": 0x18000}.get(info.mapper, 0x10000)
@@ -1121,12 +1140,12 @@ def convert(setname, outdir=ROOT / "out", romdir=ROOT / "mame_roms", workdir=ROO
         t = tile32(c)
         if t is not None:
             opq = overlay.pen_set(t) & 0x7FFF
-            combos += [(3, c, mk) for mk in sorted(s3masks) if opq & mk]
-    ovl_tiles, ovl_tabs, ovl_skipped = overlay.build(
-        None, combos, first, (0x800000 - len(regions["gfx"])) // 128, tiles=tiles, tile32=tile32)
+            (combos if c in s3codes else fill).extend((3, c, mk) for mk in sorted(s3masks) if opq & mk)
+    ovl_tiles, ovl_tabs, ovl_skipped, fill_skipped = overlay.build(
+        None, combos, first, (0x800000 - len(regions["gfx"])) // 128, tiles=tiles, tile32=tile32, fill=fill)
     ovl_tab, ovl_size = ovl_tabs[2]
     ovl_tab3, ovl_size3 = ovl_tabs[3]
-    nofit = [c for c in ovl_skipped if c[0] == 2 or (c[0] == 3 and c[1] in s3codes)]
+    nofit = [c for c in ovl_skipped if c[0] in (2, 3)]   # (scroll1 has no overlays)
     if nofit:
         raise ConvertError(f"{len(nofit)} overlay variants do not fit: {nofit[:5]}")
     if os.environ.get("CPS15_PAIRTEST"):          # test build: palette/list pairing marker
@@ -1244,6 +1263,7 @@ def convert(setname, outdir=ROOT / "out", romdir=ROOT / "mame_roms", workdir=ROO
         "ram_exec": [f"{a:06x}" for a in sorted(ram_exec)],
         "overlay_variants": len(ovl_tiles) // 128, "overlay_table": ovl_size,
         "overlay_scroll3": len([1 for k, _v, _f in ovl_tab3 if k != overlay.EMPTY_KEY]), "overlay_skipped": len(ovl_skipped),
+        "overlay_fill_skipped": len(fill_skipped),
     }
     (wd / "report.json").write_text(json.dumps(rep, indent=1))
     return cs, rep

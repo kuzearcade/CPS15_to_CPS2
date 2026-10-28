@@ -28,7 +28,7 @@ cps15to2/        converter package (python3 -m cps15to2.convert)
   output/        MAME and Darksoft writers
 asm/             68k code added to every set: HAL, sprite/overlay engines, EEPROM, per-game callbacks (cb_*.s)
 specs/           one patch spec per code base (wof_def.yaml: wofr1/wofa)
-analysis/        recorded evidence the converter reads: I/O taps (iotap/), scroll tile recordings, cheats
+analysis/        recorded evidence the converter reads: I/O taps (iotap/), scroll tile recordings, mask register values, cheats
 tools/           MAME driver generator, coverage recorder, analysis helpers
 tests/           MAME job runner, lock-step / playthrough comparisons
 mame/lua/        harness scripts that MAME runs during tests
@@ -156,24 +156,24 @@ done
 
 | Set | `out/mame/<set>/` | `out/darksoft/<set>/` |
 |---|---|---|
-| wofc2 | `3cdbd62b50b2aa7da9d0e4fe577c0ce06ec732eb` | `2fb5008a501616ad9ec165382bc094abaf8809ad` |
-| wofr1c2 | `7a674f2d57ae150dbeefd5f18afd7f17c1e88634` | `106ba0e790edce5b334e551f6d0b51739ee3f3da` |
-| wofuc2 | `d137f77c27a547a3edde0a1e6a108c6752be3a4b` | `1c1042ba2d9c1f5bea467a4a8e0203fb0b54213c` |
-| wofac2 | `e135f807f4c32b2aad4b3f30f8af6de52d73d5db` | `5836ace92d443f8daf2655508744b1f4967118cb` |
-| wofjc2 | `c97a168a51ac2b5bf07ebe2ce7c64058ca34873e` | `e7de29258976ae1a53ce671c489e7019503b4c85` |
-| dinoc2 | `ce725c5b3cd42936ee0f315506b528f6e2b9131f` | `397d8ca000c14628a7859551c19d9b946d7438dc` |
-| dinouc2 | `cf26500e34315ec3ced23c5991375b7bcc7041e0` | `8811dc0f6911810c2d5a84cc56e08a44598da8d1` |
-| dinojc2 | `bba0245294dbcf6582d8b5894f2dccfedaaf8e39` | `ab3117ef8ac153401ae07ba4ea34a376d6c48f77` |
-| dinoac2 | `84cc699dcb93c283afcdd428df1366d8ba9a418f` | `10c77bf3c41c7714b8af7d87af3081f87ff10d7b` |
-| punisherc2 | `25b45d004d8634cf363939931de7f22be5f6140d` | `3b6aa78fee9f1404fa1cf058e10e680719298abb` |
-| punisheruc2 | `304a59b1aa78260c9093039362efaac37a520d3a` | `75b6e86bc2b3bc744a9eee40767a1f8bb3a2a2fc` |
-| punisherhc2 | `f1c15e7342f24a5e2e771ab760d05e151a53d76c` | `30ee00e683bc18061b0d01c92aed536656d6392c` |
-| punisherjc2 | `7dad372fba2091cf1043ed06a9eac825fbd188c0` | `6f8c30121fbfbd982f0e58fb22c2e41ca1ce635a` |
-| slammastc2 | `7b90e622dd635e832b8ada6637f2e8285523cf6f` | `a7a119b28c074667af825e337285b5a66e98274f` |
-| slammastuc2 | `a054e59474b0d287558eb215a245f762ef674694` | `0b7f0e52b287f38d28bc75516a8f0230bcacc8d5` |
-| mbomberjc2 | `82f7596d2f2afee409d7b53febfc429ca06296aa` | `4d3978d7bac5984c15d0a494e34ed2fe6c549f34` |
-| mbombrdc2 | `450b7a5de94b87b10278a1320212856f6f0969f5` | `2b5a4cc9515bde3cc5ffed33daee2d47aff73167` |
-| mbombrdjc2 | `5dd0cb429b82fb1abc0e73544c39da6f68799742` | `5575788d589742e60760850dda27df64aae4194f` |
+| wofc2 | `2e37c8a81d5c9167a6a19bec6718bf736b50f643` | `0948c0425ad07ab3765fdedca7eb07d84d1c4494` |
+| wofr1c2 | `367187282c2e776d924b6ace777b82f4be5f01f4` | `e6856477c41324dfbf3e5cd41c95078943943a3f` |
+| wofuc2 | `ca7d925bcaea3b1f1f8c5a099f623694f9d10aad` | `6b16a68eeb0a4b854f5cb9d77a7fd00cef9e6d54` |
+| wofac2 | `cb6026bbe0c41b0f54f43858a7fce1deaf33091b` | `8d6c3de1307a498628e9d6104de8354bc3174a7b` |
+| wofjc2 | `a7eab51188020155fe52eba0b0d9fb26a781cec8` | `0ca3ae161a973c3c816dd0c23827aed76be1eafb` |
+| dinoc2 | `00b2f59dbb57f411a73f06d5bb878a90939041e1` | `d60e07bae77ffdef868de3715b7edb5435f371b1` |
+| dinouc2 | `1a1d3b7d5e183de087bf82ac20a83cf8ad55e264` | `ecda0b84460fba092b11d8f7876ef45761a681d4` |
+| dinojc2 | `46e9b4bbc3082f510fb95107ff410dc21f044af3` | `64f8d0df6ee3247824d9d090b78035b0271a4984` |
+| dinoac2 | `9251c41a47d132463cfb72c432e6184ab4741c6f` | `8a88958de3c046b32cd82864a061a3abbe75c303` |
+| punisherc2 | `fdf4fbaee4dcc9e9d3924f5e713209a51fbfc77e` | `1a024efc1bfeaf03964e371a38f77ed961cb5d56` |
+| punisheruc2 | `d84564124f399e7151b437235574cfa365d92a5d` | `c9b094bb29492ba729226896d7045b11169fd945` |
+| punisherhc2 | `d78617be7f16b38208de1f92589f8f5327c05f0c` | `d13cf77c4dbb0a5b3bbdbebeec646def9336f790` |
+| punisherjc2 | `c158ef045ae440d464a9e0fad9f8ed4983fccc04` | `683a4b321e0fdf0b79cfeb40adb799a18af1b963` |
+| slammastc2 | `69230e4fefec7cd3e259b1f1ba70f444f34c163f` | `5ffdb8f58895384d2a5ac44037301c9003d33769` |
+| slammastuc2 | `eacf197efd48147d491a73ef4838b7145ff0de1b` | `b1cf5da15f36cb553cbba242b83953057bd44c36` |
+| mbomberjc2 | `bd66a854e02f03365c1ce9f1eb16ae73e1753e16` | `35c22dbc84eda81149189d6bac5bd9ea24e00587` |
+| mbombrdc2 | `3d821aa6c319369de37f102653e58e2223694551` | `f6f69ea7c63daa33fc3086a21c31469a4af4a629` |
+| mbombrdjc2 | `71d0005b91d4575f8df18e09dcdc6af286b991db` | `4e2b9af5ee9b5bab69d4a94cafb4e46fd4ac452a` |
 
 ### 5. Add the sets to MAME
 

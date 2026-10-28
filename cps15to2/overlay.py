@@ -74,11 +74,15 @@ def pen_set(t):
     return m
 
 
-def build(gfx, combos, first_code, max_tiles, tiles=None, tile32=None):
-    """combos: iterable of (layer, code, mask); layer 2 = scroll2 (16x16), layer 3 =
-    scroll3 (32x32, needs tile32(code) -> 32x32 pens).
+MAX_TABLE = 0x20000      # hash table entries (8 bytes each, in the 1 MB window)
 
-    Returns (tile_bytes, tables, skipped) with tables = {2: (entries, size), 3: ...}.
+
+def build(gfx, combos, first_code, max_tiles, tiles=None, tile32=None, fill=()):
+    """combos: iterable of (layer, code, mask); layer 2 = scroll2 (16x16), layer 3 =
+    scroll3 (32x32, needs tile32(code) -> 32x32 pens). fill: more combos, placed in
+    the given order after all of combos while there is room.
+
+    Returns (tile_bytes, tables, skipped, fill_skipped) with tables = {2: (entries, size), 3: ...}.
     Overlay code n lives at sprite code first_code + n; identical variants are shared,
     and a scroll2 variant that keeps every opaque pen of its tile is the tile itself
     (scroll2 and sprite codes address the same 16x16 graphics). A scroll3 variant is
@@ -98,12 +102,26 @@ def build(gfx, combos, first_code, max_tiles, tiles=None, tile32=None):
             tiles_out.extend(data[i:i + 128] for i in range(0, len(data), 128))
         return first_code + index[data]
 
-    for layer, code, mask in sorted(set((int(c[0]), int(c[1]), int(c[2])) for c in combos)):
+    req = sorted(set((int(c[0]), int(c[1]), int(c[2])) for c in combos))
+    seen = set(req)
+    opt = []
+    for c in fill:
+        c = (int(c[0]), int(c[1]), int(c[2]))
+        if c not in seen:
+            seen.add(c)
+            opt.append(c)
+    nreq = len(req)
+    fill_skipped = []
+    for n, (layer, code, mask) in enumerate(req + opt):
+        sk = skipped if n < nreq else fill_skipped
+        if n >= nreq and len(entries[layer]) >= MAX_TABLE * 3 // 4:
+            sk.append((layer, code, mask))     # table full
+            continue
         sel = np.array([(mask >> p) & 1 for p in range(15)] + [0], dtype=bool)
         if layer == 3 and tile32 is not None:
             t = tile32(code)
             if t is None:
-                skipped.append((layer, code, mask))
+                sk.append((layer, code, mask))
                 continue
             keep = sel[t]
             if not keep.any():
@@ -114,12 +132,12 @@ def build(gfx, combos, first_code, max_tiles, tiles=None, tile32=None):
             present = sum(1 << i for i, q in enumerate(quads) if (q != TRANSP).any())
             ocode = alloc(b"".join(encode16(q) for q in quads))
             if ocode is None:
-                skipped.append((layer, code, mask))
+                sk.append((layer, code, mask))
                 continue
             entries[3][(code, mask)] = (ocode, present)
             continue
         if layer != 2 or code >= len(tiles):
-            skipped.append((layer, code, mask))
+            sk.append((layer, code, mask))
             continue
         t = tiles[code]
         keep = sel[t]
@@ -131,7 +149,7 @@ def build(gfx, combos, first_code, max_tiles, tiles=None, tile32=None):
             continue
         ocode = alloc(encode16(np.where(keep, t, TRANSP).astype(np.uint8)))
         if ocode is None:
-            skipped.append((layer, code, mask))
+            sk.append((layer, code, mask))
             continue
         entries[2][(code, mask)] = (ocode, 0)
     tables = {}
@@ -139,7 +157,7 @@ def build(gfx, combos, first_code, max_tiles, tiles=None, tile32=None):
         size = 1
         while size < max(16, len(ent) * 4 // 3):
             size *= 2
-        if size > 0x20000:
+        if size > MAX_TABLE:
             raise ValueError(f"overlay table needs {size} entries")
         table = [(EMPTY_KEY, 0, 0)] * size
         for (code, mask), (ocode, flags) in ent.items():
@@ -148,7 +166,7 @@ def build(gfx, combos, first_code, max_tiles, tiles=None, tile32=None):
                 i = (i + 1) & (size - 1)
             table[i] = ((code << 16) | mask, ocode, flags)
         tables[layer] = (table, size)
-    return b"".join(tiles_out), tables, skipped
+    return b"".join(tiles_out), tables, skipped, fill_skipped
 
 
 def table_bin(table):
