@@ -73,6 +73,7 @@ SH_GPVALID      equ     SHIM+$1d9e      ; byte: OVL_GAMEPAL holds the game's col
 SH_PALNEW       equ     SHIM+$1d9f      ; byte: SH_PALSA changed, not on screen yet
 SH_PALSA        equ     SHIM+$1db4      ; l: sprite page shown (SPRBUF0 or SPRBUF1)
 SH_PALT         equ     SHIM+$1db8      ; l: line clock (ee_now) of the last palette base write
+SH_PALBASE      equ     SHIM+$1dc0      ; w: palette base the game wrote last (0: none yet)
 SH_SUSP         equ     SHIM+$1dbc      ; byte: a conversion is parked (hal_vbl), resumed at idle
 SH_SWITCH       equ     SHIM+$1dbd      ; byte: hal_vbl parks the conversion it interrupted
 SH_CONVSP       equ     SHIM+$1e00      ; l: parked conversion: SP at its interrupt frame
@@ -117,6 +118,7 @@ NOIDLE_VBL      equ     4               ; vblanks without an idle pass before ha
 SPRBUF0         equ     $902000
 SPRBUF1         equ     $902400
 PALCAP          equ     $903400         ; $400: the game's sprite page at the last capture
+PALSAVE         equ     $902c00         ; $400: the game's page 0 while pal_show uploads
 ROWBUF          equ     $902800         ; row-scroll entries for lines 0-255 as of the last
 ROWBUF_REG      equ     (ROWBUF>>8)&$ffff ; vblank ($200 used; base 2 KB aligned)
 ; palette DMA timing (jtcps1_dma, the FPGA model): the copy starts at the next line
@@ -127,7 +129,7 @@ PAL_DMA         equ     16              ; lines after a base write before the ne
 ; board's palette RAM starts random). A selection from page 0 up reads the same in
 ; MAME, jtcps and the board, where selections with a gap do not.
 PAL_PAGES       equ     $003f
-PAL_LATCH       equ     2               ; lines the sprite-page selection is held
+PAL_HOLD        equ     6               ; lines the shown sprite page stays in the game's buffer
 VC_EN           equ     $000e           ; CPS-A video control: tilemap enables (immediate)
 LAYER_ENS       equ     $003e           ; CPS2 layer control: layer enables (immediate)
 
@@ -563,6 +565,7 @@ hal_init:
         move.w  SH_FLIPS,OVL_CHKFL
         clr.w   OVL_STALE
         clr.l   SH_PALT
+        clr.w   SH_PALBASE
         clr.w   SH_SUSP                 ; SH_SUSP, SH_SWITCH
         bsr     init_mirrors
         ifd     HAVE_EE8
@@ -572,7 +575,7 @@ hal_init:
         move.w  #OUT_BASE,SH_OUT
         move.w  #OUT_BASE,CPS2_OUTPORT
         bsr     cps2_hwinit
-        move.w  #PAL_PAGES,CPS2_PALCTRL ; except around a sprite page upload
+        move.w  #PAL_PAGES,CPS2_PALCTRL ; (never changed: every upload is a full one)
         move.w  #0,CPS2_CPSB+$0e        ; raster IRQ: no horizontal delay
         move.w  #$8000|$1ff,CPS2_CPSB+$10 ; deadline IRQ disarmed until an OBJ base write
         move.w  #$01ff,CPS2_CPSB+$12    ; counter 2 never fires: scanline read-back (hal_sprites)
@@ -1254,12 +1257,12 @@ row_copy:
 .s5     dbra    d0,.s4
         rts
 
-; CPS-A palette base write (palette upload). The game's buffer goes up as written
-; (the tilemap pages belong with the tilemap contents, which are never held back),
-; then the sprite page shown with the current list (SH_PALSA) goes up over page 0.
-; The game's sprite page is captured into the other buffer and shown from the next
-; vblank, with the list converted meanwhile. The page selection is only ever
-; PAL_PAGES or the sprite page alone (see PAL_PAGES; pal_show for the DMA timing).
+; CPS-A palette base write (palette upload). The game's tilemap pages go up as
+; written (they belong with the tilemap contents, which are never held back), in
+; the same DMA as the sprite page shown with the current list (SH_PALSA, put into
+; page 0 by pal_show). The game's sprite page is captured into the other buffer and
+; shown from the next vblank, with the list converted meanwhile. One upload per
+; game upload, always with PAL_PAGES (see PAL_PAGES; pal_show for the DMA timing).
 ; d2.w = value written.
 pal_trigger:
         movem.l d0-d7/a0-a3,-(sp)
@@ -1271,14 +1274,10 @@ pal_trigger:
         andi.l  #$3fc00,d0
         addi.l  #$900000,d0
         movea.l d0,a1                   ; game buffer, page 0 = sprites
+        move.w  d2,SH_PALBASE
         move.w  d7,d4
         andi.w  #$3e,d4                 ; any page besides the sprites
-        beq     .nw
-        move.w  d2,$80010a              ; PAL_PAGES: page 0 of the game's buffer too
-        bsr     ee_now
-        move.l  d0,SH_PALT
-        sf      SH_PALNEW
-.nw     movea.l a1,a0                   ; d5: the game's sprite colours changed since
+        movea.l a1,a0                   ; d5: the game's sprite colours changed since
         lea     PALCAP,a2               ; the last capture (most frames they did not)
         move.w  #$400/4-1,d0
 .cmp    cmpm.l  (a0)+,(a2)+
@@ -1286,10 +1285,10 @@ pal_trigger:
         sne     d5
         tst.w   d4
         beq     .nt
-        ; the sprite page shown with the current list goes up over it, unless it
-        ; is the same (most frames: a second upload restarts the game's copy,
-        ; which on the FPGA model is slow outside vblank): the shown page is the
-        ; last capture unless overlay colours are in it or a capture still waits
+        ; the sprite page shown with the current list goes up in place of the
+        ; game's page 0, unless it is the same (most frames: the game's buffer
+        ; then goes up as it is): the shown page is the last capture unless
+        ; overlay colours are in it or a capture still waits
         move.b  d5,d6
         or.b    SH_PALDUE,d6
         or.b    SH_SPRPALP,d6
@@ -1311,9 +1310,16 @@ pal_trigger:
         movea.l d0,a2
         bsr     pal_page                ; shown from the next vblank
         st      SH_SPRPALP
-.ns     tst.b   d6
-        beq     .x
-        bsr     pal_show
+.ns     tst.w   d4
+        beq     .x                      ; sprite page only: shown from the next vblank
+        tst.b   d6
+        beq     .plain
+        bsr     pal_show                ; the game's upload with the shown sprite page
+        bra     .x
+.plain  move.w  d2,$80010a              ; the game's buffer as it is (page 0 = shown page)
+        bsr     ee_now
+        move.l  d0,SH_PALT
+        sf      SH_PALNEW
 .x      movem.l (sp)+,d0-d7/a0-a3
         rts
 
@@ -1329,36 +1335,53 @@ pal_page:
         rts
 
 ; upload the shown sprite page (SH_PALSA), after putting the overlay palettes in
-; when due. The upload waits for the copy of the last one to end (a new base write
-; restarts the DMA), and the sprite-page selection stays until the copy has started.
+; when due, in ONE palette DMA with the game's tilemap pages: the shown page goes
+; into page 0 of the game's buffer for the copy and the game's page 0 comes back
+; after it. (A second, sprite-page-only upload after the game's lost or damaged
+; colours on the board and on jtcps2.) The upload waits for the copy of the last
+; one to end (a new base write restarts the DMA).
 pal_show:
-        movem.l d0-d2/a0,-(sp)
+        movem.l d0-d3/a0-a3,-(sp)
         sf      SH_PALNEW
         tst.b   SH_PALDUE
         beq     .up
         sf      SH_PALDUE
         bsr     ovl_paldma
-.up
+.up     tst.w   SH_PALBASE
+        beq     .x                      ; no game upload yet: nothing to pair with
 .w1     bsr     ee_now
         move.l  d0,d1
         sub.l   SH_PALT,d1
         bmi     .go                     ; clock restarted (gfx RAM cleared): no wait
         cmpi.l  #PAL_DMA,d1
         blt     .w1
-.go
-        move.l  SH_PALSA,d2
-        lsr.l   #8,d2                   ; full address bits, as games write them
-        move.w  #$0001,CPS2_PALCTRL
-        CPSA_GAP
-        move.w  d2,$80010a
+.go     move.w  sr,-(sp)
+        ori.w   #$0700,sr               ; the game's page 0 is away until the copy
+        moveq   #0,d0
+        move.w  SH_PALBASE,d0
+        lsl.l   #8,d0
+        andi.l  #$3fc00,d0
+        addi.l  #$900000,d0
+        movea.l d0,a1                   ; game buffer, page 0
+        movea.l a1,a0
+        lea     PALSAVE,a2
+        bsr     pal_page
+        movea.l SH_PALSA,a0
+        movea.l a1,a2
+        bsr     pal_page
+        move.w  SH_PALBASE,$80010a      ; PAL_PAGES
+        bsr     ee_now
         move.l  d0,SH_PALT
         move.l  d0,d2
-        addq.l  #PAL_LATCH,d2
+        addq.l  #PAL_HOLD,d2
 .w2     bsr     ee_now
         sub.l   d2,d0                   ; by difference: right across the wrap
         bmi     .w2
-        move.w  #PAL_PAGES,CPS2_PALCTRL
-        movem.l (sp)+,d0-d2/a0
+        lea     PALSAVE,a0
+        movea.l a1,a2
+        bsr     pal_page
+        move.w  (sp)+,sr
+.x      movem.l (sp)+,d0-d3/a0-a3
         rts
 
 wr_qram2:
